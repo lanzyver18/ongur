@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - Video Chat</title>
+    <title>Ongur - Video</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
+        .typing-msg { color: #999; font-style: italic; font-size: 0.75rem; display: none; margin-top: 4px; }
+        
         .video-container {
             position: relative; width: 100%; aspect-ratio: 4 / 3; 
             background-color: #000; border-radius: 4px; overflow: hidden;
@@ -24,24 +26,24 @@
 
     <div id="tosModal" class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4">
         <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl">
-            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight">Terms of Service</h2>
-            <div class="text-sm text-gray-600 space-y-3 mb-6 max-h-60 overflow-y-auto pr-2 border-b border-gray-100 pb-4">
-                <p><strong>1. Age:</strong> You must be 18+ to use Ongur.</p>
-                <p><strong>2. Behavior:</strong> No nudity or harassment. Instant ban for violations.</p>
-                <p><strong>3. Connection:</strong> This is a peer-to-peer service.</p>
+            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight leading-tight">Terms of Service</h2>
+            <div class="text-sm text-gray-600 space-y-3 mb-6 max-h-60 overflow-y-auto border-b border-gray-100 pb-4">
+                <p>1. Must be 18+.</p>
+                <p>2. No nudity/harassment.</p>
+                <p>3. Anonymous P2P connection.</p>
             </div>
             <label class="flex items-center gap-3 cursor-pointer mb-6">
                 <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded text-blue-600">
-                <span class="text-sm font-bold text-gray-700">I agree to the Terms of Service</span>
+                <span class="text-sm font-bold text-gray-700">I agree to the Terms</span>
             </label>
-            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold text-lg opacity-50 cursor-not-allowed transition-all">Agree & Enter</button>
+            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold opacity-50 cursor-not-allowed">Agree & Enter</button>
         </div>
     </div>
 
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
             <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Video</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Strangers Online</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
         </div>
         <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-2 py-1 border border-gray-200 rounded">Exit</a>
     </header>
@@ -61,8 +63,9 @@
         </div>
         <div class="w-full md:w-1/3 flex flex-col bg-white border-l border-gray-300 h-64 md:h-auto">
             <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
-                <p class="status-msg">Welcome to Ongur Video.</p>
+                <p class="status-msg">Welcome.</p>
             </div>
+            <div id="typingIndicator" class="px-4 py-1 text-[10px] text-gray-400 italic font-bold uppercase hidden">Stranger is typing...</div>
             <div class="p-2 bg-gray-50 border-t border-gray-200">
                 <div class="flex gap-2">
                     <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none h-12" disabled></textarea>
@@ -103,22 +106,19 @@
 
         let pc, localStream, dataChannel, currentRoomId;
         let isStopped = true;
+        let typingTimeout;
 
-        // TOS LOGIC
         const tosModal = document.getElementById('tosModal');
         const tosCheckbox = document.getElementById('tosCheckbox');
         const tosBtn = document.getElementById('tosBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
 
         tosCheckbox.addEventListener('change', () => {
             tosBtn.disabled = !tosCheckbox.checked;
             tosBtn.classList.toggle('opacity-50', !tosCheckbox.checked);
-            tosBtn.classList.toggle('cursor-not-allowed', !tosCheckbox.checked);
         });
 
-        tosBtn.onclick = () => {
-            tosModal.classList.add('hidden');
-            initCamera();
-        };
+        tosBtn.onclick = () => { tosModal.classList.add('hidden'); initCamera(); };
 
         const countRef = doc(db, "metadata", "video_status");
         onSnapshot(countRef, (doc) => {
@@ -141,15 +141,15 @@
                 document.getElementById('localVideo').srcObject = localStream;
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            } catch (e) { addMsg("System", "Camera Access Required.", "status-msg text-red-600"); }
+            } catch (e) { alert("Camera Permission Required"); }
         }
 
         async function handleDisconnect(reason) {
             if (isStopped) return;
-            console.log("Disconnect reason:", reason);
+            isStopped = true;
             addMsg("System", reason, "status-msg text-red-500 font-bold");
+            typingIndicator.classList.add('hidden');
             await stopEverything();
-            // Automatically reset UI for new match
             nextBtn.innerText = "New";
             nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md";
         }
@@ -161,7 +161,7 @@
 
         nextBtn.onclick = async () => {
             if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold"; }
-            else if (nextBtn.innerText === "Really?") { await stopEverything(); nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold"; }
+            else if (nextBtn.innerText === "Really?") { await handleDisconnect("Chat ended."); }
             else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; await startSession(); }
         };
 
@@ -174,22 +174,20 @@
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>'; // CLEAR CHAT
             await signInAnonymously(auth);
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
-        function setupPC(roomRef) {
+        function setupPC() {
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
             pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
-            
-            // INSTANT DISCONNECT MONITORING
             pc.onconnectionstatechange = () => {
                 if (pc && (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed")) {
-                    handleDisconnect("Stranger left the chat.");
+                    handleDisconnect("Stranger left.");
                 }
             };
         }
@@ -197,19 +195,17 @@
         async function createRoom() {
             const roomRef = doc(collection(db, "rooms"));
             currentRoomId = roomRef.id;
-            setupPC(roomRef);
+            setupPC();
             dataChannel = pc.createDataChannel("chat"); setupDataChannel();
-
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
-
             onSnapshot(roomRef, (snap) => {
-                if (!snap.exists()) { handleDisconnect("Stranger skipped."); return; }
+                if (!snap.exists() && !isStopped) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
+                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected!</p>';
                 }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
@@ -218,25 +214,38 @@
         async function joinRoom(roomId) {
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
-            await deleteDoc(roomRef);
-            currentRoomId = roomId;
-            setupPC(roomRef);
+            await deleteDoc(roomRef); currentRoomId = roomId;
+            setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
+            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected!</p>';
         }
 
         function setupDataChannel() {
             dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
-            dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
+            dataChannel.onmessage = (e) => {
+                if (e.data === "TYPING_START") { typingIndicator.classList.remove('hidden'); }
+                else if (e.data === "TYPING_STOP") { typingIndicator.classList.add('hidden'); }
+                else {
+                    typingIndicator.classList.add('hidden');
+                    addMsg("Stranger", e.data, "stranger-msg");
+                }
+            };
             dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
+
+        // TYPING EMITTER
+        chatInput.oninput = () => {
+            if (dataChannel?.readyState === "open") {
+                dataChannel.send("TYPING_START");
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => dataChannel.send("TYPING_STOP"), 2000);
+            }
+        };
 
         function addMsg(s, t, c) {
             const p = document.createElement('p'); p.innerHTML = `<span class="${c}">${s}:</span> ${t}`;
@@ -247,10 +256,11 @@
             const val = chatInput.value;
             if (val && dataChannel?.readyState === "open") {
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
+                dataChannel.send("TYPING_STOP");
             }
         };
 
-        window.addEventListener('beforeunload', () => updateCounter(-1));
+        window.onbeforeunload = () => updateCounter(-1);
         document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'hidden') stopEverything(); });
     </script>
 </body>
