@@ -6,35 +6,27 @@
     <title>Ongur - Talk to Strangers</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4 font-sans">
-    <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 text-center">
-        <h1 class="text-5xl font-black text-blue-700 tracking-tighter italic mb-2">ONGUR</h1>
-        <p class="text-gray-400 text-sm mb-8 font-bold uppercase tracking-widest">Talk to Strangers!</p>
-
-        <div class="bg-blue-50 p-4 rounded-xl mb-6 text-left border border-blue-100">
-            <h3 class="text-blue-800 font-bold text-xs mb-2 uppercase">Terms of Service</h3>
-            <div class="text-[10px] text-blue-600 leading-relaxed h-24 overflow-y-auto pr-2">
-                You must be 18+ to use Ongur. Use of the video chat implies consent to local AI Nudity Detection. 
-                Harassment, lewd behavior, or illegal content will result in an immediate permanent ban. 
-                We do not store your video data, but we do log Report IDs for community safety.
-            </div>
-            <label class="flex items-center gap-2 mt-3 cursor-pointer">
-                <input type="checkbox" id="tos" class="rounded text-blue-600">
-                <span class="text-xs font-bold text-blue-900">I agree to the terms and I am 18+</span>
-            </label>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-            <button onclick="entry('text')" class="py-4 bg-gray-100 hover:bg-gray-200 rounded-xl font-black text-lg transition-all active:scale-95">TEXT</button>
-            <button onclick="entry('video')" class="py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-lg shadow-lg shadow-blue-200 transition-all active:scale-95">VIDEO</button>
+<body class="bg-gray-50 h-screen flex flex-col justify-center items-center p-6 text-center">
+    
+    <div class="max-w-xl">
+        <h1 class="text-6xl font-extrabold text-blue-700 tracking-tighter uppercase mb-2">Ongur</h1>
+        <p class="text-gray-500 font-bold text-lg mb-8 italic italic">Talk to strangers, completely anonymous.</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="/video" class="bg-blue-700 text-white p-8 rounded-2xl shadow-xl hover:bg-blue-800 transition-all hover:scale-105">
+                <h2 class="text-2xl font-bold mb-1">Video Chat</h2>
+                <p class="text-blue-200 text-sm">Webcam required. 1080p HD.</p>
+            </a>
+            <a href="/text" class="bg-white border-2 border-blue-700 text-blue-700 p-8 rounded-2xl shadow-xl hover:bg-gray-50 transition-all hover:scale-105">
+                <h2 class="text-2xl font-bold mb-1">Text Chat</h2>
+                <p class="text-gray-400 text-sm">Anonymous typing. No camera.</p>
+            </a>
         </div>
     </div>
 
-    <script>
-        function entry(mode) {
-            if(!document.getElementById('tos').checked) return alert("Please agree to the Terms first!");
-            window.location.href = mode + ".html";
-        }
-    </script>
+    <footer class="mt-12 text-gray-400 text-xs font-bold uppercase tracking-widest">
+        You must be 18+ to use Ongur.
+    </footer>
+
 </body>
 </html>
