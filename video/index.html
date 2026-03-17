@@ -24,27 +24,26 @@
 
     <div id="tosModal" class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4">
         <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl">
-            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight">Before you start...</h2>
+            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight">Terms of Service</h2>
             <div class="text-sm text-gray-600 space-y-3 mb-6 max-h-60 overflow-y-auto pr-2 border-b border-gray-100 pb-4">
-                <p><strong>1. Age Requirement:</strong> You must be 18+ to use Ongur Video.</p>
-                <p><strong>2. Conduct:</strong> No nudity, harassment, or illegal content. We have zero tolerance for predatory behavior.</p>
-                <p><strong>3. Privacy:</strong> Chats are anonymous. Do not share personal info with strangers.</p>
-                <p><strong>4. Consent:</strong> By using this site, you consent to peer-to-peer video transmission.</p>
+                <p><strong>1. Age:</strong> You must be 18+ to use Ongur.</p>
+                <p><strong>2. Behavior:</strong> No nudity or harassment. Instant ban for violations.</p>
+                <p><strong>3. Connection:</strong> This is a peer-to-peer service.</p>
             </div>
-            <label class="flex items-center gap-3 cursor-pointer group mb-6">
-                <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                <span class="text-sm font-bold text-gray-700 group-hover:text-blue-700 transition-colors">I agree to the Terms of Service</span>
+            <label class="flex items-center gap-3 cursor-pointer mb-6">
+                <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded text-blue-600">
+                <span class="text-sm font-bold text-gray-700">I agree to the Terms of Service</span>
             </label>
-            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold text-lg opacity-50 cursor-not-allowed transition-all">Enter Video Chat</button>
+            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold text-lg opacity-50 cursor-not-allowed transition-all">Agree & Enter</button>
         </div>
     </div>
 
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
-            <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none">Ongur Video</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400">Loading...</span></div>
+            <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Video</h1>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Strangers Online</span></div>
         </div>
-        <a href="/" class="text-xs font-bold text-gray-400 hover:underline">Exit</a>
+        <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-2 py-1 border border-gray-200 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
@@ -105,7 +104,7 @@
         let pc, localStream, dataChannel, currentRoomId;
         let isStopped = true;
 
-        // TOS MODAL LOGIC
+        // TOS LOGIC
         const tosModal = document.getElementById('tosModal');
         const tosCheckbox = document.getElementById('tosCheckbox');
         const tosBtn = document.getElementById('tosBtn');
@@ -118,7 +117,7 @@
 
         tosBtn.onclick = () => {
             tosModal.classList.add('hidden');
-            initCamera(); // Start camera request ONLY after they agree
+            initCamera();
         };
 
         const countRef = doc(db, "metadata", "video_status");
@@ -142,8 +141,17 @@
                 document.getElementById('localVideo').srcObject = localStream;
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Camera ready. Click Start Chat.</p>';
-            } catch (e) { chatBox.innerHTML = '<p class="status-msg text-red-600 font-bold">Error: Camera/Mic required.</p>'; }
+            } catch (e) { addMsg("System", "Camera Access Required.", "status-msg text-red-600"); }
+        }
+
+        async function handleDisconnect(reason) {
+            if (isStopped) return;
+            console.log("Disconnect reason:", reason);
+            addMsg("System", reason, "status-msg text-red-500 font-bold");
+            await stopEverything();
+            // Automatically reset UI for new match
+            nextBtn.innerText = "New";
+            nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md";
         }
 
         startBtn.onclick = async () => {
@@ -152,65 +160,82 @@
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold shadow-md"; }
-            else if (nextBtn.innerText === "Really?") { await stopEverything(); nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md"; }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold"; }
+            else if (nextBtn.innerText === "Really?") { await stopEverything(); nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold"; }
             else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; await startSession(); }
         };
 
         async function stopEverything() {
-            isStopped = true; if (pc) pc.close(); if (currentRoomId) await deleteDoc(doc(db, "rooms", currentRoomId));
-            document.getElementById('remoteVideo').srcObject = null; chatBox.innerHTML = '<p class="status-msg">Disconnected.</p>';
+            if (pc) { pc.close(); pc = null; }
+            if (currentRoomId) { try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e){} currentRoomId = null; }
+            document.getElementById('remoteVideo').srcObject = null;
             chatInput.disabled = true;
         }
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg text-blue-500 font-bold underline">Looking for a stranger...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
             await signInAnonymously(auth);
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
-        async function createRoom() {
+        function setupPC(roomRef) {
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
-            const roomRef = doc(collection(db, "rooms")); currentRoomId = roomRef.id;
-            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
+            
+            // INSTANT DISCONNECT MONITORING
+            pc.onconnectionstatechange = () => {
+                if (pc && (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed")) {
+                    handleDisconnect("Stranger left the chat.");
+                }
+            };
+        }
+
+        async function createRoom() {
+            const roomRef = doc(collection(db, "rooms"));
+            currentRoomId = roomRef.id;
+            setupPC(roomRef);
+            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
+
+            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
+
             onSnapshot(roomRef, (snap) => {
+                if (!snap.exists()) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Matched with a stranger!</p>';
+                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
                 }
             });
-            onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
+            onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
         }
 
         async function joinRoom(roomId) {
-            pc = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
-            await deleteDoc(roomRef); currentRoomId = roomId;
+            await deleteDoc(roomRef);
+            currentRoomId = roomId;
+            setupPC(roomRef);
+            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
+
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-            onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Matched with a stranger!</p>';
+
+            onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
+            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
         }
 
         function setupDataChannel() {
             dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
-            dataChannel.onclose = () => { if (pc && !isStopped) nextBtn.click(); };
+            dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
 
         function addMsg(s, t, c) {
@@ -225,7 +250,8 @@
             }
         };
 
-        window.onbeforeunload = () => updateCounter(-1);
+        window.addEventListener('beforeunload', () => updateCounter(-1));
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'hidden') stopEverything(); });
     </script>
 </body>
 </html>
