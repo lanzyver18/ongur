@@ -2,293 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - Pro Video Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ongur - Talk to Strangers</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
-        .you-msg { color: #ff0000; font-weight: bold; }
-        .stranger-msg { color: #0000ff; font-weight: bold; }
-        .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
-        
-        .video-container {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 4 / 3; 
-            background-color: #000;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 2px solid #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        video { max-width: 100%; max-height: 100%; object-fit: contain; }
-
-        .pulse {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background-color: #22c55e;
-            border-radius: 50%;
-            margin-right: 6px;
-            animation: blink 2s infinite;
-        }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    </style>
 </head>
-<body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4 font-sans">
+    <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 text-center">
+        <h1 class="text-5xl font-black text-blue-700 tracking-tighter italic mb-2">ONGUR</h1>
+        <p class="text-gray-400 text-sm mb-8 font-bold uppercase tracking-widest">Talk to Strangers!</p>
 
-    <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
-        <div class="flex flex-col">
-            <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur</h1>
-            <div class="flex items-center mt-1">
-                <span class="pulse"></span>
-                <span id="onlineCount" class="text-[10px] font-bold text-gray-500 uppercase">0 Strangers Online</span>
+        <div class="bg-blue-50 p-4 rounded-xl mb-6 text-left border border-blue-100">
+            <h3 class="text-blue-800 font-bold text-xs mb-2 uppercase">Terms of Service</h3>
+            <div class="text-[10px] text-blue-600 leading-relaxed h-24 overflow-y-auto pr-2">
+                You must be 18+ to use Ongur. Use of the video chat implies consent to local AI Nudity Detection. 
+                Harassment, lewd behavior, or illegal content will result in an immediate permanent ban. 
+                We do not store your video data, but we do log Report IDs for community safety.
             </div>
-        </div>
-        <div id="status" class="text-[10px] font-semibold text-gray-400 uppercase text-right">Idle</div>
-    </header>
-
-    <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
-        <div class="w-full md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100 overflow-y-auto md:overflow-hidden">
-            <div class="flex flex-col gap-2 h-full justify-center max-w-2xl mx-auto w-full">
-                <div class="video-container shadow-lg">
-                    <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded border border-gray-300">YOU</div>
-                    <button id="switchBtn" class="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-all">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="video-container shadow-lg">
-                    <video id="remoteVideo" autoplay playsinline></video>
-                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded border border-gray-300">STRANGER</div>
-                </div>
-            </div>
+            <label class="flex items-center gap-2 mt-3 cursor-pointer">
+                <input type="checkbox" id="tos" class="rounded text-blue-600">
+                <span class="text-xs font-bold text-blue-900">I agree to the terms and I am 18+</span>
+            </label>
         </div>
 
-        <div class="w-full md:w-1/3 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-300 h-64 md:h-auto">
-            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
-                <p class="status-msg">Welcome. Please enable your camera.</p>
-            </div>
-            <div class="p-2 bg-gray-50 border-t border-gray-200">
-                <div class="flex gap-2">
-                    <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none h-12" disabled></textarea>
-                    <button id="sendBtn" class="bg-blue-600 text-white px-4 rounded font-bold text-sm disabled:opacity-50" disabled>Send</button>
-                </div>
-            </div>
+        <div class="grid grid-cols-2 gap-4">
+            <button onclick="entry('text')" class="py-4 bg-gray-100 hover:bg-gray-200 rounded-xl font-black text-lg transition-all active:scale-95">TEXT</button>
+            <button onclick="entry('video')" class="py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-lg shadow-lg shadow-blue-200 transition-all active:scale-95">VIDEO</button>
         </div>
-    </main>
+    </div>
 
-    <footer class="p-4 bg-gray-100 border-t border-gray-300 flex justify-center gap-4 shrink-0">
-        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-12 py-3 rounded font-bold text-lg shadow-md active:scale-95 transition-all opacity-50 cursor-not-allowed" disabled>Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gray-200 hover:bg-gray-300 text-black border border-gray-400 px-12 py-3 rounded font-bold text-lg shadow-sm active:scale-95 transition-all">Stop</button>
-    </footer>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyA6VxPhC3Y214VvPJTS4XQebN5k4KTBBps",
-            authDomain: "ongur-26b0d.firebaseapp.com",
-            projectId: "ongur-26b0d",
-            storageBucket: "ongur-26b0d.firebasestorage.app",
-            messagingSenderId: "1096173981635",
-            appId: "1:1096173981635:web:4722a323d2fd111123b776",
-            measurementId: "G-KK16MH00SV"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        // INTEGRATING YOUR METERED TURN CREDENTIALS
-        const servers = {
-            iceServers: [
-                { urls: "stun:stun.l.google.com:19302" },
-                {
-                    urls: "turn:global.relay.metered.ca:443",
-                    username: "feb83559f52a708fa7772314",
-                    credential: "Dc81y6H6B0pfJHDc"
-                },
-                {
-                    urls: "turn:global.relay.metered.ca:443?transport=tcp",
-                    username: "feb83559f52a708fa7772314",
-                    credential: "Dc81y6H6B0pfJHDc"
-                }
-            ]
-        };
-
-        let pc = null;
-        let localStream = null;
-        let dataChannel = null;
-        let currentRoomId = null;
-        let isStopped = true;
-        let useFacingMode = "user"; // "user" or "environment"
-
-        const startBtn = document.getElementById('startBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const statusText = document.getElementById('status');
-        const chatBox = document.getElementById('chatMessages');
-        const chatInput = document.getElementById('chatInput');
-
-        // COUNTER
-        const countRef = doc(db, "metadata", "status");
-        onSnapshot(countRef, (doc) => {
-            const count = doc.data()?.online || 0;
-            document.getElementById('onlineCount').innerText = `${count * 7} Strangers Online`;
-        });
-
-        async function updateCounter(val) {
-            try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
+    <script>
+        function entry(mode) {
+            if(!document.getElementById('tos').checked) return alert("Please agree to the Terms first!");
+            window.location.href = mode + ".html";
         }
-
-        // CAMERA HANDLING
-        async function initCamera() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 1920, height: 1080, facingMode: useFacingMode }, 
-                    audio: true 
-                });
-                document.getElementById('localVideo').srcObject = localStream;
-                startBtn.disabled = false;
-                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            } catch (e) {
-                chatBox.innerHTML += `<p class="status-msg text-red-600">Camera error. Please check permissions.</p>`;
-            }
-        }
-
-        window.addEventListener('load', initCamera);
-
-        document.getElementById('switchBtn').onclick = () => {
-            useFacingMode = useFacingMode === "user" ? "environment" : "user";
-            initCamera();
-        };
-
-        startBtn.onclick = async () => {
-            isStopped = false;
-            startBtn.classList.add('hidden');
-            nextBtn.classList.remove('hidden');
-            await updateCounter(1);
-            await startSession();
-        };
-
-        nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") {
-                nextBtn.innerText = "Really?";
-                nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold text-lg shadow-md transition-all";
-            } else if (nextBtn.innerText === "Really?") {
-                await stopEverything();
-                nextBtn.innerText = "New";
-                nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold text-lg shadow-md transition-all";
-            } else {
-                isStopped = false;
-                nextBtn.innerText = "Stop";
-                nextBtn.className = "bg-gray-200 hover:bg-gray-300 text-black border border-gray-400 px-12 py-3 rounded font-bold text-lg shadow-sm transition-all";
-                await startSession();
-            }
-        };
-
-        async function stopEverything() {
-            isStopped = true;
-            if (pc) { pc.close(); pc = null; }
-            if (currentRoomId) { try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e) {} currentRoomId = null; }
-            document.getElementById('remoteVideo').srcObject = null;
-            chatBox.innerHTML = '<p class="status-msg">Disconnected.</p>';
-            statusText.innerText = "IDLE";
-            chatInput.disabled = true;
-            document.getElementById('sendBtn').disabled = true;
-        }
-
-        async function startSession() {
-            if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>';
-            statusText.innerText = "SEARCHING...";
-            await signInAnonymously(auth);
-            const q = query(collection(db, "rooms"), limit(1));
-            const snapshot = await getDocs(q);
-            if (snapshot.empty) { createRoom(); } else { joinRoom(snapshot.docs[0].id); }
-        }
-
-        async function createRoom() {
-            if (isStopped) return;
-            pc = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            dataChannel = pc.createDataChannel("chat");
-            setupDataChannel();
-            const roomRef = doc(collection(db, "rooms"));
-            currentRoomId = roomRef.id;
-            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
-            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
-            onSnapshot(roomRef, (snap) => {
-                const data = snap.data();
-                if (!isStopped && pc && !pc.currentRemoteDescription && data?.answer) {
-                    pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    statusText.innerText = "CONNECTED";
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">You are now chatting with a random stranger. Say hi!</p>';
-                }
-            });
-            onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
-                s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
-            });
-        }
-
-        async function joinRoom(roomId) {
-            if (isStopped) return;
-            pc = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
-            const roomRef = doc(db, "rooms", roomId);
-            const roomData = (await getDoc(roomRef)).data();
-            await deleteDoc(roomRef);
-            currentRoomId = roomId;
-            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
-            await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-            onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
-                s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
-            });
-            statusText.innerText = "CONNECTED";
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">You are now chatting with a random stranger. Say hi!</p>';
-        }
-
-        function setupDataChannel() {
-            dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
-            dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
-            dataChannel.onclose = () => { if (pc && !isStopped) nextBtn.click(); };
-        }
-
-        function addMsg(s, t, c) {
-            const p = document.createElement('p');
-            p.innerHTML = `<span class="${c}">${s}:</span> ${t}`;
-            chatBox.appendChild(p);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        document.getElementById('sendBtn').onclick = () => {
-            const val = chatInput.value;
-            if (val && dataChannel?.readyState === "open") {
-                dataChannel.send(val);
-                addMsg("You", val, "you-msg");
-                chatInput.value = "";
-            }
-        };
-
-        window.onbeforeunload = () => updateCounter(-1);
     </script>
 </body>
 </html>
