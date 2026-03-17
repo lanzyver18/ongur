@@ -10,34 +10,39 @@
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #777; font-style: italic; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .pulse { display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 6px; animation: blink 2s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
-    <header class="p-4 border-b border-gray-300 flex justify-between items-center bg-white shadow-sm">
-        <h1 class="text-2xl font-extrabold text-blue-700 tracking-tighter uppercase">Ongur Text</h1>
-        <a href="/" class="text-xs font-bold text-gray-400 hover:underline">Exit</a>
+    <header class="p-4 border-b border-gray-300 flex justify-between items-center bg-white shadow-sm shrink-0">
+        <div>
+            <h1 class="text-2xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur Text</h1>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase">Searching...</span></div>
+        </div>
+        <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-3 py-1 border border-gray-200 rounded">Exit</a>
     </header>
 
-    <main class="flex-grow flex flex-col max-w-4xl mx-auto w-full overflow-hidden bg-gray-50 border-x border-gray-200">
-        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white">
+    <main class="flex-grow flex flex-col max-w-4xl mx-auto w-full overflow-hidden bg-gray-50 md:border-x border-gray-200">
+        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white font-sans">
             <p class="status-msg">Click Start to find a text-only stranger.</p>
         </div>
-        <div class="p-4 bg-gray-100 border-t border-gray-300">
+        <div class="p-4 bg-gray-100 border-t border-gray-200">
             <div class="flex gap-2">
-                <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-blue-500 h-20 resize-none shadow-inner" disabled></textarea>
-                <button id="sendBtn" class="bg-blue-600 text-white px-8 rounded-lg font-bold disabled:opacity-50" disabled>Send</button>
+                <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-blue-500 h-16 resize-none shadow-sm transition-all" disabled></textarea>
+                <button id="sendBtn" class="bg-blue-600 text-white px-6 rounded-lg font-bold disabled:opacity-50 transition-all" disabled>Send</button>
             </div>
         </div>
     </main>
 
-    <footer class="p-4 bg-white border-t border-gray-300 flex justify-center gap-4">
-        <button id="startBtn" class="bg-blue-700 text-white px-16 py-4 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chatting</button>
-        <button id="nextBtn" class="hidden bg-gray-200 text-black px-16 py-4 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
+    <footer class="p-4 bg-white border-t border-gray-300 flex justify-center gap-4 shrink-0">
+        <button id="startBtn" class="bg-blue-700 text-white px-12 py-3 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-gray-200 text-black px-12 py-3 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
     </footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -53,57 +58,81 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+        // Uses Metered TURN for reliability even in text mode
+        const servers = { iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "turn:global.relay.metered.ca:443", username: "feb83559f52a708fa7772314", credential: "Dc81y6H6B0pfJHDc" }
+        ]};
+
         let pc, dataChannel, currentRoomId, isStopped = true;
+
+        const countRef = doc(db, "metadata", "text_status");
+        onSnapshot(countRef, (doc) => {
+            const count = doc.data()?.online || 0;
+            document.getElementById('onlineCount').innerText = `${count * 4} Strangers Online`;
+        });
+
+        async function updateCounter(val) {
+            try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
+        }
 
         const startBtn = document.getElementById('startBtn');
         const nextBtn = document.getElementById('nextBtn');
         const chatBox = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
 
         startBtn.onclick = async () => {
             isStopped = false; startBtn.classList.add('hidden'); nextBtn.classList.remove('hidden');
-            await startSession();
+            await updateCounter(1); await startSession();
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; nextBtn.className = "bg-orange-500 text-white px-16 py-4 rounded-full font-bold"; await stopEverything(); }
-            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-16 py-4 rounded-full font-bold"; await startSession(); }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; await stopEverything(); }
+            else { isStopped = false; nextBtn.innerText = "Stop"; await startSession(); }
         };
 
         async function stopEverything() {
             isStopped = true; if (pc) pc.close(); if (currentRoomId) await deleteDoc(doc(db, "text_rooms", currentRoomId));
-            chatBox.innerHTML = '<p class="status-msg">Stranger disconnected.</p>'; chatInput.disabled = true;
+            chatBox.innerHTML += '<p class="status-msg">Disconnected.</p>'; 
+            chatInput.disabled = true; sendBtn.disabled = true;
         }
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Searching for a partner...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Searching...</p>';
             await signInAnonymously(auth);
             const q = query(collection(db, "text_rooms"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
-        async function createRoom() {
+        function setupPC() {
             pc = new RTCPeerConnection(servers);
-            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') stopEverything();
+            };
+        }
+
+        async function createRoom() {
+            setupPC();
+            dataChannel = pc.createDataChannel("chat", { negotiated: false });
+            setupDataChannel();
             const roomRef = doc(collection(db, "text_rooms")); currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
             onSnapshot(roomRef, (snap) => {
+                if (!snap.exists() && !isStopped) { stopEverything(); return; }
                 const data = snap.data();
-                if (pc && !pc.currentRemoteDescription && data?.answer) {
-                    pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Talking to a random stranger!</p>';
-                }
+                if (pc && !pc.currentRemoteDescription && data?.answer) pc.setRemoteDescription(new RTCSessionDescription(data.answer));
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
         }
 
         async function joinRoom(roomId) {
-            pc = new RTCPeerConnection(servers);
+            setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
             const roomRef = doc(db, "text_rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
@@ -113,12 +142,16 @@
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Talking to a random stranger!</p>';
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
+            dataChannel.onopen = () => { 
+                chatInput.disabled = false; sendBtn.disabled = false;
+                chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected! Type something...</p>';
+                chatInput.focus();
+            };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
+            dataChannel.onerror = (e) => console.error("DC Error:", e);
         }
 
         function addMsg(s, t, c) {
@@ -132,6 +165,9 @@
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
             }
         };
+
+        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('sendBtn').click(); } });
+        window.onbeforeunload = () => updateCounter(-1);
     </script>
 </body>
 </html>
