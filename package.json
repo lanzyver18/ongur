@@ -1,7 +1,0 @@
-{
-  "name": "ongur-video",
-  "version": "1.0.0",
-  "scripts": {
-    "build": "mkdir -p public && node -e \"const fs = require('fs'); let html = fs.readFileSync('index.html', 'utf8'); const vars = ['FIREBASE_API_KEY', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_PROJECT_ID', 'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_APP_ID', 'FIREBASE_MEASUREMENT_ID']; vars.forEach(v => { html = html.split('APP_' + v).join(process.env[v] || ''); }); fs.writeFileSync('public/index.html', html);\""
-  }
-}
