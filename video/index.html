@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - Pro Video</title>
+    <title>Ongur - Video</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
+        .system-alert { color: #2563eb; font-weight: 800; font-style: italic; text-align: center; margin: 5px 0; font-size: 0.9rem; }
+        
         .video-container {
             position: relative; width: 100%; aspect-ratio: 4 / 3; 
             background-color: #000; border-radius: 4px; overflow: hidden;
@@ -24,27 +26,27 @@
 
     <div id="tosModal" class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4">
         <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl text-center">
-            <h2 class="text-3xl font-extrabold text-blue-700 mb-2 uppercase tracking-tighter">Ongur</h2>
-            <p class="text-sm text-gray-500 mb-6 font-bold uppercase tracking-widest">Video Chat Rules</p>
+            <h2 class="text-3xl font-extrabold text-blue-700 mb-2 uppercase tracking-tighter leading-none">Ongur</h2>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-6">Video Chat Rules</p>
             <div class="text-left text-sm text-gray-600 space-y-3 mb-6 border-b pb-4">
-                <p>• No nudity or sexual content.</p>
-                <p>• No harassment or bullying.</p>
-                <p>• You must be 18 years or older.</p>
+                <p>• You must be 18+ years old.</p>
+                <p>• No nudity or sexual behavior.</p>
+                <p>• Respect other users.</p>
             </div>
             <label class="flex items-center gap-3 cursor-pointer mb-6 justify-center">
                 <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded text-blue-600">
                 <span class="text-sm font-bold text-gray-700">I Agree & Am 18+</span>
             </label>
-            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold opacity-50 cursor-not-allowed">Start Video</button>
+            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg opacity-50 cursor-not-allowed">Enter Chat</button>
         </div>
     </div>
 
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
             <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Video</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400">Strangers Online</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase">Strangers Online</span></div>
         </div>
-        <a href="/" class="text-xs font-bold text-gray-400 border border-gray-200 px-2 py-1 rounded">Exit</a>
+        <a href="/" class="text-xs font-bold text-gray-400 border px-2 py-1 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
@@ -143,14 +145,18 @@
             } catch (e) { alert("Camera Permission Required"); }
         }
 
+        // NEW: AUTO-REQUEUE LOGIC
         async function handleDisconnect(reason) {
             if (isStopped) return;
-            isStopped = true;
             addMsg("System", reason, "status-msg text-red-500 font-bold");
             typingIndicator.classList.add('hidden');
+            
             await stopEverything();
-            nextBtn.innerText = "New";
-            nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md";
+
+            // Brief delay then auto-requeue
+            setTimeout(async () => {
+                if (!isStopped) await startSession();
+            }, 1500);
         }
 
         startBtn.onclick = async () => {
@@ -159,9 +165,19 @@
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold"; }
-            else if (nextBtn.innerText === "Really?") { await handleDisconnect("Chat ended."); }
-            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; await startSession(); }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold shadow-md"; }
+            else if (nextBtn.innerText === "Really?") { 
+                isStopped = true;
+                await stopEverything(); 
+                nextBtn.innerText = "New"; 
+                nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md"; 
+            }
+            else { 
+                isStopped = false; 
+                nextBtn.innerText = "Stop"; 
+                nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; 
+                await startSession(); 
+            }
         };
 
         async function stopEverything() {
@@ -173,10 +189,9 @@
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
             await signInAnonymously(auth);
             
-            // Only look for OPEN rooms
             const q = query(collection(db, "rooms"), where("status", "==", "open"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
@@ -198,21 +213,16 @@
             currentRoomId = roomRef.id;
             setupPC();
             dataChannel = pc.createDataChannel("chat"); setupDataChannel();
-
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-            
-            await setDoc(roomRef, { 
-                offer: { sdp: offer.sdp, type: offer.type },
-                status: "open"
-            });
+            await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type }, status: "open" });
 
             onSnapshot(roomRef, (snap) => {
                 if (!snap.exists() && !pc.currentRemoteDescription && !isStopped) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected!</p>';
+                    chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
                 }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
@@ -221,32 +231,26 @@
         async function joinRoom(roomId) {
             const roomRef = doc(db, "rooms", roomId);
             const roomSnap = await getDoc(roomRef);
-            const roomData = roomSnap.data();
-
-            if (roomData.status !== "open") { startSession(); return; }
+            if (!roomSnap.exists() || roomSnap.data().status !== "open") { startSession(); return; }
 
             currentRoomId = roomId;
             setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
-            await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
+            await pc.setRemoteDescription(new RTCSessionDescription(roomSnap.data().offer));
 
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-            
-            await updateDoc(roomRef, { 
-                answer: { sdp: answer.sdp, type: answer.type },
-                status: "occupied"
-            });
+            await updateDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type }, status: "occupied" });
 
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected!</p>';
+            chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
         }
 
         function setupDataChannel() {
             dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
             dataChannel.onmessage = (e) => {
-                if (e.data === "TYPING_START") { typingIndicator.classList.remove('hidden'); }
-                else if (e.data === "TYPING_STOP") { typingIndicator.classList.add('hidden'); }
+                if (e.data === "TYPING_START") typingIndicator.classList.remove('hidden');
+                else if (e.data === "TYPING_STOP") typingIndicator.classList.add('hidden');
                 else { typingIndicator.classList.add('hidden'); addMsg("Stranger", e.data, "stranger-msg"); }
             };
             dataChannel.onclose = () => handleDisconnect("Stranger left.");
@@ -274,7 +278,7 @@
         };
 
         window.onbeforeunload = () => updateCounter(-1);
-        document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'hidden') stopEverything(); });
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'hidden' && !isStopped) stopEverything(); });
     </script>
 </body>
 </html>
