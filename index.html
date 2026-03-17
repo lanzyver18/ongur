@@ -23,7 +23,6 @@
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden border-b border-gray-300">
-        
         <div class="flex-grow md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100">
             <div class="flex-grow grid grid-rows-2 gap-2">
                 <div class="relative bg-black rounded shadow-inner overflow-hidden flex items-center justify-center">
@@ -60,7 +59,6 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // Placeholders for Vercel Build Step
         const firebaseConfig = {
             apiKey: "APP_FIREBASE_API_KEY",
             authDomain: "APP_FIREBASE_AUTH_DOMAIN",
@@ -75,7 +73,10 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const servers = { iceServers: [
+            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+        ]};
+
         let pc = null;
         let localStream = null;
         let dataChannel = null;
@@ -87,6 +88,7 @@
         const chatInput = document.getElementById('chatInput');
 
         startBtn.onclick = async () => {
+            console.log("Start Clicked");
             startBtn.classList.add('hidden');
             nextBtn.classList.remove('hidden');
             await startSession();
@@ -96,30 +98,49 @@
 
         async function startSession() {
             statusText.innerText = "STATUS: AUTHORIZING...";
-            await signInAnonymously(auth);
+            try {
+                const user = await signInAnonymously(auth);
+                console.log("Auth success:", user.user.uid);
+            } catch (err) {
+                console.error("Auth failed:", err);
+                addMsg("System", "Authentication Error. Is Anonymous Auth enabled?", "status-msg");
+                return;
+            }
             
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('localVideo').srcObject = localStream;
+                console.log("Camera access granted");
             } catch (e) {
-                addMsg("System", "Camera access denied. Please allow camera and refresh.", "status-msg");
+                console.error("Media failed:", e);
+                addMsg("System", "Camera denied. Please check site permissions.", "status-msg");
                 return;
             }
 
+            statusText.innerText = "STATUS: SEARCHING...";
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
 
-            if (snapshot.empty) { createRoom(); } else { joinRoom(snapshot.docs[0].id); }
+            if (snapshot.empty) { 
+                console.log("No rooms found, becoming host...");
+                createRoom(); 
+            } else { 
+                console.log("Room found, becoming joiner...");
+                joinRoom(snapshot.docs[0].id); 
+            }
         }
 
         async function setupPC() {
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.ontrack = (event) => { document.getElementById('remoteVideo').srcObject = event.streams[0]; };
+            pc.ontrack = (event) => { 
+                console.log("Remote track received");
+                document.getElementById('remoteVideo').srcObject = event.streams[0]; 
+            };
         }
 
         async function createRoom() {
-            statusText.innerText = "STATUS: WAITING FOR STRANGER...";
+            statusText.innerText = "STATUS: WAITING...";
             await setupPC();
             dataChannel = pc.createDataChannel("chat");
             setupDataChannel();
@@ -131,24 +152,32 @@
             await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
 
+            console.log("Host room created:", roomRef.id);
+
             onSnapshot(roomRef, (snap) => {
                 const data = snap.data();
                 if (!pc.currentRemoteDescription && data?.answer) {
+                    console.log("Answer received from joiner");
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     statusText.innerText = "STATUS: CONNECTED";
-                    addMsg("System", "You're now chatting with a random stranger. Say hi!", "status-msg");
+                    addMsg("System", "You're now chatting with a stranger!", "status-msg");
                 }
             });
 
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
-                s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+                s.docChanges().forEach(c => {
+                    if (c.type === "added") pc.addIceCandidate(new RTCIceCandidate(c.doc.data()));
+                });
             });
         }
 
         async function joinRoom(roomId) {
-            statusText.innerText = "STATUS: JOINING...";
+            statusText.innerText = "STATUS: CONNECTING...";
             await setupPC();
-            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
+            pc.ondatachannel = (e) => { 
+                dataChannel = e.channel; 
+                setupDataChannel(); 
+            };
 
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
@@ -162,20 +191,26 @@
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
 
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
-                s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+                s.docChanges().forEach(c => {
+                    if (c.type === "added") pc.addIceCandidate(new RTCIceCandidate(c.doc.data()));
+                });
             });
             statusText.innerText = "STATUS: CONNECTED";
-            addMsg("System", "You're now chatting with a random stranger. Say hi!", "status-msg");
+            addMsg("System", "Connected to stranger!", "status-msg");
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
+            dataChannel.onopen = () => { 
+                console.log("Chat channel open");
+                chatInput.disabled = false; 
+                document.getElementById('sendBtn').disabled = false; 
+            };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
         }
 
         function sendMessage() {
             const val = chatInput.value;
-            if (val && dataChannel.readyState === "open") {
+            if (val && dataChannel && dataChannel.readyState === "open") {
                 dataChannel.send(val);
                 addMsg("You", val, "you-msg");
                 chatInput.value = "";
