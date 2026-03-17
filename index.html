@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Omegle Clone</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Omegle Clone - 1080p</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
@@ -11,56 +11,73 @@
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
         
-        /* RESPONSIVE VIDEO FITTING */
+        /* 1080p ASPECT RATIO & MOBILE FIX */
+        .video-container {
+            position: relative;
+            width: 100%;
+            /* Maintains 16:9 ratio */
+            aspect-ratio: 16 / 9; 
+            background-color: #000;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+
         video {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Fills the container without black bars */
-            background-color: #000;
+            object-fit: cover; /* Ensures 1080p fills the box */
+        }
+
+        /* Adjustments for very small screens */
+        @media (max-width: 768px) {
+            .video-container {
+                aspect-ratio: 4 / 3; /* Slightly boxier on mobile to save vertical space */
+            }
         }
     </style>
 </head>
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden text-[16px]">
 
-    <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white">
+    <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex items-baseline gap-2">
-            <h1 class="text-3xl font-extrabold text-blue-700 tracking-tighter">Omegle</h1>
-            <span class="text-xs font-bold text-gray-500 uppercase italic">Talk to strangers!</span>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700 tracking-tighter">Omegle</h1>
+            <span class="hidden sm:inline text-xs font-bold text-gray-500 uppercase italic">Talk to strangers!</span>
         </div>
-        <div id="status" class="text-xs font-semibold text-gray-400 uppercase tracking-tighter">Status: Offline</div>
+        <div id="status" class="text-[10px] font-semibold text-gray-400 uppercase">Status: Offline</div>
     </header>
 
-    <main class="flex-grow flex flex-col md:flex-row overflow-hidden border-b border-gray-300">
+    <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
         
-        <div class="flex-grow md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100">
-            <div class="flex-grow grid grid-rows-2 gap-2 h-full">
-                <div class="relative bg-black rounded shadow-inner overflow-hidden flex items-center justify-center">
+        <div class="w-full md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100 overflow-y-auto md:overflow-hidden">
+            <div class="flex flex-col gap-2 h-full justify-center">
+                <div class="video-container shadow-sm">
                     <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-black rounded border border-gray-300">YOU</div>
+                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded shadow-sm">YOU</div>
                 </div>
-                <div class="relative bg-black rounded shadow-inner overflow-hidden flex items-center justify-center">
+                <div class="video-container shadow-sm">
                     <video id="remoteVideo" autoplay playsinline></video>
-                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-black rounded border border-gray-300">STRANGER</div>
+                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded shadow-sm">STRANGER</div>
                 </div>
             </div>
         </div>
 
-        <div class="w-full md:w-1/3 flex flex-col bg-white border-l border-gray-300">
-            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm border-b border-gray-200 bg-white">
-                <p class="status-msg">Omegle is a great way to meet new friends. You must be 18+.</p>
+        <div class="w-full md:w-1/3 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-300 h-64 md:h-auto">
+            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
+                <p class="status-msg">You're now chatting with a random stranger. Say hi!</p>
             </div>
-            <div class="p-3 bg-gray-50 flex flex-col gap-2">
+            <div class="p-2 bg-gray-50 border-t border-gray-200">
                 <div class="flex gap-2">
-                    <textarea id="chatInput" placeholder="Type your message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500 resize-none h-16" disabled></textarea>
+                    <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500 resize-none h-12" disabled></textarea>
                     <button id="sendBtn" class="bg-blue-600 text-white px-4 rounded font-bold text-sm disabled:opacity-50" disabled>Send</button>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="p-4 bg-gray-100 flex justify-center items-center gap-4">
-        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md transition-transform active:scale-95">Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md transition-transform active:scale-95">Stop / Next</button>
+    <footer class="p-3 bg-gray-100 border-t border-gray-300 flex justify-center gap-3 shrink-0">
+        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95 transition-all">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-gradient-to-b from-orange-400 to-orange-600 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95 transition-all">Next</button>
     </footer>
 
     <script type="module">
@@ -68,7 +85,6 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // HARDCODED FIREBASE CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyA6VxPhC3Y214VvPJTS4XQebN5k4KTBBps",
             authDomain: "ongur-26b0d.firebaseapp.com",
@@ -102,21 +118,12 @@
         };
 
         nextBtn.onclick = async () => {
-            await cleanup();
+            if (pc) { pc.close(); pc = null; }
+            if (currentRoomId) { try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e) {} }
+            document.getElementById('remoteVideo').srcObject = null;
+            chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
             await startSession();
         };
-
-        async function cleanup() {
-            if (pc) { pc.close(); pc = null; }
-            if (currentRoomId) {
-                try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e) {}
-                currentRoomId = null;
-            }
-            document.getElementById('remoteVideo').srcObject = null;
-            chatBox.innerHTML = '<p class="status-msg">Searching for a new stranger...</p>';
-            chatInput.disabled = true;
-            document.getElementById('sendBtn').disabled = true;
-        }
 
         async function startSession() {
             statusText.innerText = "STATUS: AUTHORIZING...";
@@ -124,10 +131,14 @@
             
             if (!localStream) {
                 try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    // REQUESTING 1080P RESOLUTION
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                        audio: true 
+                    });
                     document.getElementById('localVideo').srcObject = localStream;
                 } catch (e) {
-                    addMsg("System", "Camera access denied. Please check permissions.", "status-msg");
+                    alert("Camera error. High-res video might not be supported on this device.");
                     return;
                 }
             }
@@ -146,20 +157,16 @@
         }
 
         async function createRoom() {
-            statusText.innerText = "STATUS: WAITING FOR STRANGER...";
+            statusText.innerText = "STATUS: WAITING...";
             await setupPC();
             dataChannel = pc.createDataChannel("chat");
             setupDataChannel();
-
             const roomRef = doc(collection(db, "rooms"));
             currentRoomId = roomRef.id;
-
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
-
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
-
             onSnapshot(roomRef, (snap) => {
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
@@ -167,7 +174,6 @@
                     statusText.innerText = "STATUS: CONNECTED";
                 }
             });
-
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
@@ -177,18 +183,14 @@
             statusText.innerText = "STATUS: JOINING...";
             await setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
-            await deleteDoc(roomRef); // Remove from queue
-
+            await deleteDoc(roomRef);
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
-
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
@@ -215,8 +217,6 @@
                 chatInput.value = "";
             }
         };
-
-        window.onbeforeunload = () => { cleanup(); };
     </script>
 </body>
 </html>
