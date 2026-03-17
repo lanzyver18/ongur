@@ -10,7 +10,7 @@
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #777; font-style: italic; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .system-alert { color: #2563eb; font-weight: 800; font-style: italic; text-align: center; margin: 10px 0; font-size: 1rem; }
+        .system-alert { color: #2563eb; font-weight: 800; font-style: italic; text-align: center; margin: 10px 0; }
         .pulse { display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 6px; animation: blink 2s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
@@ -18,14 +18,14 @@
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
     <header class="p-4 border-b border-gray-300 flex justify-between items-center bg-white shadow-sm shrink-0">
         <div>
-            <h1 class="text-2xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur Text</h1>
+            <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Text</h1>
             <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
         </div>
         <a href="/" class="text-xs font-bold text-gray-400 border px-3 py-1 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col max-w-4xl mx-auto w-full overflow-hidden bg-gray-50 md:border-x border-gray-200">
-        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white">
+        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white font-sans">
             <p class="status-msg">Click Start to find a stranger.</p>
         </div>
         <div id="typingIndicator" class="px-6 py-1 text-[10px] text-gray-400 italic font-bold uppercase hidden bg-white">Stranger is typing...</div>
@@ -38,8 +38,8 @@
     </main>
 
     <footer class="p-4 bg-white border-t border-gray-300 flex justify-center gap-4 shrink-0">
-        <button id="startBtn" class="bg-blue-700 text-white px-16 py-4 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gray-200 text-black px-16 py-4 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
+        <button id="startBtn" class="bg-blue-700 text-white px-12 py-3 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-gray-200 text-black px-12 py-3 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
     </footer>
 
     <script type="module">
@@ -83,6 +83,7 @@
         const chatBox = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
         const typingIndicator = document.getElementById('typingIndicator');
+        const sendBtn = document.getElementById('sendBtn');
 
         async function handleDisconnect(reason) {
             if (isStopped) return;
@@ -105,7 +106,7 @@
         async function stopEverything() {
             if (pc) pc.close(); 
             if (currentRoomId) { try { await deleteDoc(doc(db, "text_rooms", currentRoomId)); } catch(e) {} currentRoomId = null; }
-            chatInput.disabled = true;
+            chatInput.disabled = true; sendBtn.disabled = true;
         }
 
         async function startSession() {
@@ -117,9 +118,15 @@
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
+        function createDataChannel() {
+            // Using ID 0 to ensure both sides use the same channel index
+            dataChannel = pc.createDataChannel("chat", { negotiated: true, id: 0 });
+            setupDataChannel();
+        }
+
         async function createRoom() {
             pc = new RTCPeerConnection(servers);
-            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
+            createDataChannel();
             const roomRef = doc(collection(db, "text_rooms")); currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             
@@ -143,7 +150,7 @@
             if (!roomSnap.exists() || roomSnap.data().status !== "open") { startSession(); return; }
 
             pc = new RTCPeerConnection(servers);
-            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
+            createDataChannel();
             currentRoomId = roomId;
 
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
@@ -157,7 +164,10 @@
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { chatInput.disabled = false; chatInput.focus(); };
+            dataChannel.onopen = () => { 
+                chatInput.disabled = false; sendBtn.disabled = false;
+                chatInput.focus();
+            };
             dataChannel.onmessage = (e) => {
                 if (e.data === "TYPING_START") typingIndicator.classList.remove('hidden');
                 else if (e.data === "TYPING_STOP") typingIndicator.classList.add('hidden');
@@ -179,7 +189,7 @@
             chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        document.getElementById('sendBtn').onclick = () => {
+        sendBtn.onclick = () => {
             const val = chatInput.value;
             if (val && dataChannel?.readyState === "open") {
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
@@ -187,7 +197,7 @@
             }
         };
 
-        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('sendBtn').click(); } });
+        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
         window.onbeforeunload = () => updateCounter(-1);
     </script>
 </body>
