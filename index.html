@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - Instant Camera</title>
+    <title>Ongur - Pro Video Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
@@ -52,11 +52,16 @@
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
-        <div class="w-full md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100 overflow-y-auto md:overflow-hidden text-center">
+        <div class="w-full md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100 overflow-y-auto md:overflow-hidden">
             <div class="flex flex-col gap-2 h-full justify-center max-w-2xl mx-auto w-full">
                 <div class="video-container shadow-lg">
                     <video id="localVideo" autoplay playsinline muted></video>
                     <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded border border-gray-300">YOU</div>
+                    <button id="switchBtn" class="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
                 </div>
                 <div class="video-container shadow-lg">
                     <video id="remoteVideo" autoplay playsinline></video>
@@ -67,7 +72,7 @@
 
         <div class="w-full md:w-1/3 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-300 h-64 md:h-auto">
             <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
-                <p class="status-msg">Welcome. Please enable your camera to start.</p>
+                <p class="status-msg">Welcome. Please enable your camera.</p>
             </div>
             <div class="p-2 bg-gray-50 border-t border-gray-200">
                 <div class="flex gap-2">
@@ -102,13 +107,37 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        // INTEGRATING YOUR METERED TURN CREDENTIALS
+        const servers = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                {
+                    urls: "turn:global.relay.metered.ca:443",
+                    username: "feb83559f52a708fa7772314",
+                    credential: "Dc81y6H6B0pfJHDc"
+                },
+                {
+                    urls: "turn:global.relay.metered.ca:443?transport=tcp",
+                    username: "feb83559f52a708fa7772314",
+                    credential: "Dc81y6H6B0pfJHDc"
+                }
+            ]
+        };
+
         let pc = null;
         let localStream = null;
         let dataChannel = null;
         let currentRoomId = null;
         let isStopped = true;
+        let useFacingMode = "user"; // "user" or "environment"
 
+        const startBtn = document.getElementById('startBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const statusText = document.getElementById('status');
+        const chatBox = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+
+        // COUNTER
         const countRef = doc(db, "metadata", "status");
         onSnapshot(countRef, (doc) => {
             const count = doc.data()?.online || 0;
@@ -119,33 +148,35 @@
             try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
         }
 
-        const startBtn = document.getElementById('startBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const statusText = document.getElementById('status');
-        const chatBox = document.getElementById('chatMessages');
-        const chatInput = document.getElementById('chatInput');
-
-        // 1. AUTO-ASK FOR CAMERA ON LOAD
-        window.addEventListener('load', async () => {
+        // CAMERA HANDLING
+        async function initCamera() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1920, height: 1080 }, audio: true });
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 1920, height: 1080, facingMode: useFacingMode }, 
+                    audio: true 
+                });
                 document.getElementById('localVideo').srcObject = localStream;
-                // Enable the start button once camera is ready
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                addMsg("System", "Camera ready. Click Start Chat to begin.", "status-msg");
             } catch (e) {
-                console.error(e);
-                addMsg("System", "Please allow camera access to use this site.", "status-msg text-red-600");
+                chatBox.innerHTML += `<p class="status-msg text-red-600">Camera error. Please check permissions.</p>`;
             }
-        });
+        }
+
+        window.addEventListener('load', initCamera);
+
+        document.getElementById('switchBtn').onclick = () => {
+            useFacingMode = useFacingMode === "user" ? "environment" : "user";
+            initCamera();
+        };
 
         startBtn.onclick = async () => {
             isStopped = false;
             startBtn.classList.add('hidden');
             nextBtn.classList.remove('hidden');
-            nextBtn.innerText = "Stop";
-            nextBtn.className = "bg-gray-200 hover:bg-gray-300 text-black border border-gray-400 px-12 py-3 rounded font-bold text-lg shadow-sm transition-all";
             await updateCounter(1);
             await startSession();
         };
@@ -181,9 +212,7 @@
             if (isStopped) return;
             chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>';
             statusText.innerText = "SEARCHING...";
-
             await signInAnonymously(auth);
-
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) { createRoom(); } else { joinRoom(snapshot.docs[0].id); }
@@ -198,21 +227,18 @@
             const roomRef = doc(collection(db, "rooms"));
             currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
-            pc.ontrack = (event) => { document.getElementById('remoteVideo').srcObject = event.streams[0]; };
+            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
-            
             onSnapshot(roomRef, (snap) => {
-                if (isStopped) return;
                 const data = snap.data();
-                if (pc && !pc.currentRemoteDescription && data?.answer) {
+                if (!isStopped && pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     statusText.innerText = "CONNECTED";
                     chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">You are now chatting with a random stranger. Say hi!</p>';
                 }
             });
-
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
@@ -223,7 +249,7 @@
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-            pc.ontrack = (event) => { document.getElementById('remoteVideo').srcObject = event.streams[0]; };
+            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
             await deleteDoc(roomRef);
@@ -233,7 +259,6 @@
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-            
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
@@ -247,9 +272,9 @@
             dataChannel.onclose = () => { if (pc && !isStopped) nextBtn.click(); };
         }
 
-        function addMsg(sender, text, colorClass) {
+        function addMsg(s, t, c) {
             const p = document.createElement('p');
-            p.innerHTML = `<span class="${colorClass}">${sender}:</span> ${text}`;
+            p.innerHTML = `<span class="${c}">${s}:</span> ${t}`;
             chatBox.appendChild(p);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
