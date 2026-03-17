@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StrangerChat AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white h-screen flex flex-col overflow-hidden">
+
+    <header class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-lg">
+        <h1 class="text-xl font-black text-blue-500 tracking-tighter">STRANGER_VIDEO</h1>
+        <div id="status" class="text-xs uppercase tracking-widest text-slate-400 font-mono">Status: Idle</div>
+    </header>
+
+    <main class="flex-grow flex flex-col md:flex-row gap-2 p-2 overflow-hidden">
+        
+        <div class="flex-grow grid grid-rows-2 md:grid-rows-1 md:grid-cols-2 gap-2 h-full">
+            <div class="relative bg-black rounded-lg border border-slate-700 overflow-hidden shadow-2xl">
+                <video id="localVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] uppercase font-bold">You</div>
+            </div>
+            <div class="relative bg-black rounded-lg border border-slate-700 overflow-hidden shadow-2xl">
+                <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+                <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] uppercase font-bold">Stranger</div>
+            </div>
+        </div>
+
+        <div class="w-full md:w-80 flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden">
+            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto space-y-2 text-sm font-mono scrollbar-hide">
+                <p class="text-blue-400 opacity-50 italic">Welcome! Click "Find Stranger" to begin.</p>
+            </div>
+            <div class="p-2 border-t border-slate-700 bg-slate-900/50 flex gap-2">
+                <input id="chatInput" type="text" placeholder="Type a message..." class="flex-grow bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" disabled>
+                <button id="sendBtn" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold opacity-50 cursor-not-allowed" disabled>Send</button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="p-4 bg-slate-800 border-t border-slate-700 flex justify-center items-center gap-6">
+        <button id="startBtn" class="bg-blue-600 hover:bg-blue-500 px-10 py-3 rounded-full font-black text-sm uppercase transition-all shadow-lg active:scale-95">Find Stranger</button>
+        <button id="nextBtn" class="hidden bg-red-600 hover:bg-red-500 px-10 py-3 rounded-full font-black text-sm uppercase transition-all shadow-lg active:scale-95">Next Stranger</button>
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // --- PASTE YOUR FIREBASE CONFIG HERE ---
+        const firebaseConfig = {
+            apiKey: "PASTE_HERE",
+            authDomain: "PASTE_HERE",
+            projectId: "PASTE_HERE",
+            storageBucket: "PASTE_HERE",
+            messagingSenderId: "PASTE_HERE",
+            appId: "PASTE_HERE"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        let pc = null;
+        let localStream = null;
+        let currentRoomId = null;
+        let dataChannel = null;
+
+        const startBtn = document.getElementById('startBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const statusText = document.getElementById('status');
+        const chatBox = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+
+        // INITIALIZE MEDIA AND MATCHMAKER
+        startBtn.onclick = async () => {
+            startBtn.classList.add('hidden');
+            nextBtn.classList.remove('hidden');
+            await startNewSession();
+        };
+
+        nextBtn.onclick = () => location.reload(); // Quick reset for prototype
+
+        async function startNewSession() {
+            statusText.innerText = "Connecting...";
+            await signInAnonymously(auth);
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject = localStream;
+
+            // Simple "Oldest Available" Matchmaking
+            const q = query(collection(db, "rooms"), limit(1));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                createRoom();
+            } else {
+                joinRoom(snapshot.docs[0].id);
+            }
+        }
+
+        async function setupPeerConnection() {
+            pc = new RTCPeerConnection(servers);
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            pc.ontrack = (event) => {
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
+        }
+
+        // --- HOST LOGIC ---
+        async function createRoom() {
+            statusText.innerText = "Status: Waiting for stranger...";
+            await setupPeerConnection();
+            
+            // Text Chat Channel
+            dataChannel = pc.createDataChannel("chat");
+            setupDataChannel();
+
+            const roomRef = doc(collection(db, "rooms"));
+            currentRoomId = roomRef.id;
+
+            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
+
+            onSnapshot(roomRef, (snap) => {
+                const data = snap.data();
+                if (!pc.currentRemoteDescription && data?.answer) {
+                    pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    statusText.innerText = "Status: Connected!";
+                }
+            });
+
+            onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
+                s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+            });
+        }
+
+        // --- JOINER LOGIC ---
+        async function joinRoom(roomId) {
+            statusText.innerText = "Status: Matching...";
+            await setupPeerConnection();
+            
+            pc.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel();
+            };
+
+            const roomRef = doc(db, "rooms", roomId);
+            const roomData = (await getDoc(roomRef)).data();
+            
+            // Claim the room by deleting it from public list immediately
+            await deleteDoc(roomRef);
+
+            pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
+            await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
+
+            onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
+                s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+            });
+
+            statusText.innerText = "Status: Connected!";
+        }
+
+        // --- CHAT LOGIC ---
+        function setupDataChannel() {
+            dataChannel.onopen = () => {
+                chatInput.disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('sendBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+            dataChannel.onmessage = (e) => addMessage("Stranger", e.data, "text-blue-400");
+        }
+
+        document.getElementById('sendBtn').onclick = sendMessage;
+        chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
+
+        function sendMessage() {
+            const msg = chatInput.value;
+            if (msg && dataChannel.readyState === "open") {
+                dataChannel.send(msg);
+                addMessage("You", msg, "text-slate-400");
+                chatInput.value = "";
+            }
+        }
+
+        function addMessage(sender, text, colorClass) {
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="${colorClass} font-bold">${sender}:</span> ${text}`;
+            chatBox.appendChild(p);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
