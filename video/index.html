@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - Video</title>
+    <title>Ongur - Pro Video</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
-        .typing-msg { color: #999; font-style: italic; font-size: 0.75rem; display: none; margin-top: 4px; }
-        
         .video-container {
             position: relative; width: 100%; aspect-ratio: 4 / 3; 
             background-color: #000; border-radius: 4px; overflow: hidden;
@@ -25,27 +23,28 @@
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
 
     <div id="tosModal" class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4">
-        <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl">
-            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight leading-tight">Terms of Service</h2>
-            <div class="text-sm text-gray-600 space-y-3 mb-6 max-h-60 overflow-y-auto border-b border-gray-100 pb-4">
-                <p>1. Must be 18+.</p>
-                <p>2. No nudity/harassment.</p>
-                <p>3. Anonymous P2P connection.</p>
+        <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl text-center">
+            <h2 class="text-3xl font-extrabold text-blue-700 mb-2 uppercase tracking-tighter">Ongur</h2>
+            <p class="text-sm text-gray-500 mb-6 font-bold uppercase tracking-widest">Video Chat Rules</p>
+            <div class="text-left text-sm text-gray-600 space-y-3 mb-6 border-b pb-4">
+                <p>• No nudity or sexual content.</p>
+                <p>• No harassment or bullying.</p>
+                <p>• You must be 18 years or older.</p>
             </div>
-            <label class="flex items-center gap-3 cursor-pointer mb-6">
+            <label class="flex items-center gap-3 cursor-pointer mb-6 justify-center">
                 <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded text-blue-600">
-                <span class="text-sm font-bold text-gray-700">I agree to the Terms</span>
+                <span class="text-sm font-bold text-gray-700">I Agree & Am 18+</span>
             </label>
-            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold opacity-50 cursor-not-allowed">Agree & Enter</button>
+            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold opacity-50 cursor-not-allowed">Start Video</button>
         </div>
     </div>
 
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
             <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Video</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400">Strangers Online</span></div>
         </div>
-        <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-2 py-1 border border-gray-200 rounded">Exit</a>
+        <a href="/" class="text-xs font-bold text-gray-400 border border-gray-200 px-2 py-1 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
@@ -63,7 +62,7 @@
         </div>
         <div class="w-full md:w-1/3 flex flex-col bg-white border-l border-gray-300 h-64 md:h-auto">
             <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
-                <p class="status-msg">Welcome.</p>
+                <p class="status-msg">Welcome to Ongur Video.</p>
             </div>
             <div id="typingIndicator" class="px-4 py-1 text-[10px] text-gray-400 italic font-bold uppercase hidden">Stranger is typing...</div>
             <div class="p-2 bg-gray-50 border-t border-gray-200">
@@ -82,7 +81,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc, increment, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -174,9 +173,11 @@
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>'; // CLEAR CHAT
+            chatBox.innerHTML = '<p class="status-msg">Looking for a stranger...</p>';
             await signInAnonymously(auth);
-            const q = query(collection(db, "rooms"), limit(1));
+            
+            // Only look for OPEN rooms
+            const q = query(collection(db, "rooms"), where("status", "==", "open"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
@@ -197,11 +198,17 @@
             currentRoomId = roomRef.id;
             setupPC();
             dataChannel = pc.createDataChannel("chat"); setupDataChannel();
+
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-            await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
+            
+            await setDoc(roomRef, { 
+                offer: { sdp: offer.sdp, type: offer.type },
+                status: "open"
+            });
+
             onSnapshot(roomRef, (snap) => {
-                if (!snap.exists() && !isStopped) { handleDisconnect("Stranger skipped."); return; }
+                if (!snap.exists() && !pc.currentRemoteDescription && !isStopped) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -213,14 +220,24 @@
 
         async function joinRoom(roomId) {
             const roomRef = doc(db, "rooms", roomId);
-            const roomData = (await getDoc(roomRef)).data();
-            await deleteDoc(roomRef); currentRoomId = roomId;
+            const roomSnap = await getDoc(roomRef);
+            const roomData = roomSnap.data();
+
+            if (roomData.status !== "open") { startSession(); return; }
+
+            currentRoomId = roomId;
             setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
+
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-            await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
+            
+            await updateDoc(roomRef, { 
+                answer: { sdp: answer.sdp, type: answer.type },
+                status: "occupied"
+            });
+
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
             chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected!</p>';
         }
@@ -230,15 +247,11 @@
             dataChannel.onmessage = (e) => {
                 if (e.data === "TYPING_START") { typingIndicator.classList.remove('hidden'); }
                 else if (e.data === "TYPING_STOP") { typingIndicator.classList.add('hidden'); }
-                else {
-                    typingIndicator.classList.add('hidden');
-                    addMsg("Stranger", e.data, "stranger-msg");
-                }
+                else { typingIndicator.classList.add('hidden'); addMsg("Stranger", e.data, "stranger-msg"); }
             };
             dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
 
-        // TYPING EMITTER
         chatInput.oninput = () => {
             if (dataChannel?.readyState === "open") {
                 dataChannel.send("TYPING_START");
