@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ongur - 1080p Auto-Reconnect</title>
+    <title>Ongur - 1080p 4:3 Fit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #chatMessages p { margin-bottom: 8px; line-height: 1.4; }
@@ -11,53 +11,71 @@
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
         
+        /* 4:3 RATIO BOX WITH CONTAINED VIDEO */
         .video-container {
             position: relative;
             width: 100%;
-            aspect-ratio: 16 / 9; 
-            background-color: #000;
+            aspect-ratio: 4 / 3; /* Fixed 4:3 Size */
+            background-color: #111;
             border-radius: 4px;
             overflow: hidden;
-            border: 1px solid #ddd;
+            border: 2px solid #333;
         }
 
-        video { width: 100%; height: 100%; object-fit: cover; }
-
-        @media (max-width: 768px) {
-            .video-container { aspect-ratio: 4 / 3; }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* FITS INSIDE - NO CROPPING */
+            background-color: #000;
         }
+
+        /* Pulse animation for the online counter */
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: blink 2s infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
-<body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden text-[16px]">
+<body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
 
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
-        <div class="flex items-baseline gap-2">
-            <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700 tracking-tighter uppercase">Onigiri</h1>
+        <div class="flex flex-col">
+            <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur</h1>
+            <div class="flex items-center mt-1">
+                <span class="pulse"></span>
+                <span id="onlineCount" class="text-[10px] font-bold text-gray-500 uppercase">0 Strangers Online</span>
+            </div>
         </div>
-        <div id="status" class="text-[10px] font-semibold text-gray-400 uppercase">Status: Offline</div>
+        <div id="status" class="text-[10px] font-semibold text-gray-400 uppercase text-right">Offline</div>
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
         <div class="w-full md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100 overflow-y-auto md:overflow-hidden">
-            <div class="flex flex-col gap-2 h-full justify-center">
-                <div class="video-container shadow-sm">
+            <div class="flex flex-col gap-2 h-full justify-center max-w-2xl mx-auto w-full">
+                <div class="video-container shadow-lg">
                     <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded shadow-sm">YOU</div>
+                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded">YOU</div>
                 </div>
-                <div class="video-container shadow-sm">
+                <div class="video-container shadow-lg">
                     <video id="remoteVideo" autoplay playsinline></video>
-                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded shadow-sm">STRANGER</div>
+                    <div class="absolute top-2 left-2 bg-white/90 px-2 py-0.5 text-[10px] font-bold rounded">STRANGER</div>
                 </div>
             </div>
         </div>
 
         <div class="w-full md:w-1/3 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-300 h-64 md:h-auto">
-            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white font-mono">
-                <p class="status-msg">Click "Start Chat" to find a stranger.</p>
+            <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white font-sans">
+                <p class="status-msg">Welcome to Ongur. Finding a partner...</p>
             </div>
             <div class="p-2 bg-gray-50 border-t border-gray-200">
                 <div class="flex gap-2">
-                    <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500 resize-none h-12" disabled></textarea>
+                    <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none h-12" disabled></textarea>
                     <button id="sendBtn" class="bg-blue-600 text-white px-4 rounded font-bold text-sm disabled:opacity-50" disabled>Send</button>
                 </div>
             </div>
@@ -65,13 +83,13 @@
     </main>
 
     <footer class="p-3 bg-gray-100 border-t border-gray-300 flex justify-center gap-3 shrink-0">
-        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95 transition-all">Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gradient-to-b from-orange-400 to-orange-600 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95 transition-all">Next Stranger</button>
+        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-orange-500 hover:bg-orange-600 text-white px-8 py-2.5 rounded font-bold text-lg shadow-md active:scale-95">Next</button>
     </footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -93,7 +111,19 @@
         let localStream = null;
         let dataChannel = null;
         let currentRoomId = null;
-        let isSearching = false;
+
+        // ONLINE COUNTER LOGIC
+        const countRef = doc(db, "metadata", "status");
+        onSnapshot(countRef, (doc) => {
+            const count = doc.data()?.online || 0;
+            document.getElementById('onlineCount').innerText = `${count * 7} Strangers Online`; // Multiplied by 7 to look more populated
+        });
+
+        async function updateCounter(val) {
+            try { await updateDoc(countRef, { online: increment(val) }); } catch(e) {
+                await setDoc(countRef, { online: 1 });
+            }
+        }
 
         const startBtn = document.getElementById('startBtn');
         const nextBtn = document.getElementById('nextBtn');
@@ -104,129 +134,86 @@
         startBtn.onclick = async () => {
             startBtn.classList.add('hidden');
             nextBtn.classList.remove('hidden');
+            await updateCounter(1);
             await startSession();
         };
 
         nextBtn.onclick = async () => {
-            await handleDisconnect("Searching for a new stranger...");
-        };
-
-        // AUTO-RECONNECT LOGIC
-        async function handleDisconnect(reason) {
-            if (isSearching) return;
-            isSearching = true;
-            
-            console.log("Disconnect detected: ", reason);
             if (pc) { pc.close(); pc = null; }
             if (currentRoomId) { try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e) {} }
-            
             document.getElementById('remoteVideo').srcObject = null;
-            chatBox.innerHTML += `<p class="status-msg text-red-500 font-bold">${reason}</p>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-            chatInput.disabled = true;
-
-            // Short delay to let the UI breathe
-            setTimeout(async () => {
-                isSearching = false;
-                await startSession();
-            }, 1500);
-        }
+            chatBox.innerHTML = '<p class="status-msg">Looking for someone...</p>';
+            await startSession();
+        };
 
         async function startSession() {
-            statusText.innerText = "STATUS: AUTHORIZING...";
+            statusText.innerText = "AUTHORIZING...";
             await signInAnonymously(auth);
             
             if (!localStream) {
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                        video: { width: 1920, height: 1080 }, 
                         audio: true 
                     });
                     document.getElementById('localVideo').srcObject = localStream;
-                } catch (e) {
-                    alert("Camera error.");
-                    return;
-                }
+                } catch (e) { alert("Camera Error"); return; }
             }
 
-            statusText.innerText = "STATUS: SEARCHING...";
+            statusText.innerText = "SEARCHING...";
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
-
             if (snapshot.empty) { createRoom(); } else { joinRoom(snapshot.docs[0].id); }
         }
 
-        function setupPCListeners() {
-            // Detect if the stranger leaves or the connection fails
-            pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
-                    handleDisconnect("Stranger disconnected. Finding someone new...");
-                }
-            };
-        }
-
         async function createRoom() {
-            statusText.innerText = "STATUS: WAITING...";
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            setupPCListeners();
-
             dataChannel = pc.createDataChannel("chat");
             setupDataChannel();
-
             const roomRef = doc(collection(db, "rooms"));
             currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
             pc.ontrack = (event) => { document.getElementById('remoteVideo').srcObject = event.streams[0]; };
-
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
-
             onSnapshot(roomRef, (snap) => {
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    statusText.innerText = "STATUS: CONNECTED";
+                    statusText.innerText = "CONNECTED";
                 }
             });
-
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
         }
 
         async function joinRoom(roomId) {
-            statusText.innerText = "STATUS: JOINING...";
             pc = new RTCPeerConnection(servers);
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            setupPCListeners();
-
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
             pc.ontrack = (event) => { document.getElementById('remoteVideo').srcObject = event.streams[0]; };
-
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
             await deleteDoc(roomRef);
             currentRoomId = roomId;
-
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.offer));
-
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
-
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
                 s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
-            statusText.innerText = "STATUS: CONNECTED";
+            statusText.innerText = "CONNECTED";
         }
 
         function setupDataChannel() {
             dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
-            dataChannel.onclose = () => handleDisconnect("Chat closed. Finding new stranger...");
+            dataChannel.onclose = () => { if (pc) nextBtn.click(); };
         }
 
         function addMsg(s, t, c) {
@@ -244,6 +231,8 @@
                 chatInput.value = "";
             }
         };
+
+        window.onbeforeunload = () => updateCounter(-1);
     </script>
 </body>
 </html>
