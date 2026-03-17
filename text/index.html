@@ -18,15 +18,17 @@
     <header class="p-4 border-b border-gray-300 flex justify-between items-center bg-white shadow-sm shrink-0">
         <div>
             <h1 class="text-2xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur Text</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase">Searching...</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
         </div>
         <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-3 py-1 border border-gray-200 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col max-w-4xl mx-auto w-full overflow-hidden bg-gray-50 md:border-x border-gray-200">
         <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white font-sans">
-            <p class="status-msg">Click Start to find a text-only stranger.</p>
+            <p class="status-msg">Click Start to find a stranger.</p>
         </div>
+        <div id="typingIndicator" class="px-6 py-1 text-[10px] text-gray-400 italic font-bold uppercase hidden bg-white">Stranger is typing...</div>
+        
         <div class="p-4 bg-gray-100 border-t border-gray-200">
             <div class="flex gap-2">
                 <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-blue-500 h-16 resize-none shadow-sm transition-all" disabled></textarea>
@@ -59,29 +61,39 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Uses Metered TURN for reliability even in text mode
         const servers = { iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
             { urls: "turn:global.relay.metered.ca:443", username: "feb83559f52a708fa7772314", credential: "Dc81y6H6B0pfJHDc" }
         ]};
 
-        let pc, dataChannel, currentRoomId, isStopped = true;
-
-        const countRef = doc(db, "metadata", "text_status");
-        onSnapshot(countRef, (doc) => {
-            const count = doc.data()?.online || 0;
-            document.getElementById('onlineCount').innerText = `${count * 4} Strangers Online`;
-        });
-
-        async function updateCounter(val) {
-            try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
-        }
+        let pc, dataChannel, currentRoomId, isStopped = true, typingTimeout;
 
         const startBtn = document.getElementById('startBtn');
         const nextBtn = document.getElementById('nextBtn');
         const chatBox = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        const countRef = doc(db, "metadata", "text_status");
+        onSnapshot(countRef, (doc) => {
+            const count = doc.data()?.online || 0;
+            document.getElementById('onlineCount').innerText = `${count * 7} Strangers Online`;
+        });
+
+        async function updateCounter(val) {
+            try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
+        }
+
+        async function handleDisconnect(reason) {
+            if (isStopped) return;
+            isStopped = true;
+            addMsg("System", reason, "status-msg text-red-500 font-bold");
+            typingIndicator.classList.add('hidden');
+            await stopEverything();
+            nextBtn.innerText = "New";
+            nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded-full font-bold shadow-lg";
+        }
 
         startBtn.onclick = async () => {
             isStopped = false; startBtn.classList.add('hidden'); nextBtn.classList.remove('hidden');
@@ -89,51 +101,50 @@
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; await stopEverything(); }
-            else { isStopped = false; nextBtn.innerText = "Stop"; await startSession(); }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; await handleDisconnect("You disconnected."); }
+            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded-full font-bold shadow-sm"; await startSession(); }
         };
 
         async function stopEverything() {
-            isStopped = true; if (pc) pc.close(); if (currentRoomId) await deleteDoc(doc(db, "text_rooms", currentRoomId));
-            chatBox.innerHTML += '<p class="status-msg">Disconnected.</p>'; 
+            if (pc) pc.close(); if (currentRoomId) await deleteDoc(doc(db, "text_rooms", currentRoomId));
             chatInput.disabled = true; sendBtn.disabled = true;
         }
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Searching...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Searching...</p>'; // INSTANT RESET
             await signInAnonymously(auth);
             const q = query(collection(db, "text_rooms"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
-        function setupPC() {
-            pc = new RTCPeerConnection(servers);
-            pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') stopEverything();
-            };
-        }
-
         async function createRoom() {
-            setupPC();
-            dataChannel = pc.createDataChannel("chat", { negotiated: false });
-            setupDataChannel();
+            pc = new RTCPeerConnection(servers);
+            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
             const roomRef = doc(collection(db, "text_rooms")); currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
+            pc.onconnectionstatechange = () => { if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) handleDisconnect("Stranger left."); };
+            
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
+
             onSnapshot(roomRef, (snap) => {
-                if (!snap.exists() && !isStopped) { stopEverything(); return; }
+                if (!snap.exists() && !isStopped) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
-                if (pc && !pc.currentRemoteDescription && data?.answer) pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                if (pc && !pc.currentRemoteDescription && data?.answer) {
+                    pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Connected!</p>';
+                }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
         }
 
         async function joinRoom(roomId) {
-            setupPC();
+            pc = new RTCPeerConnection(servers);
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
+            pc.onconnectionstatechange = () => { if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) handleDisconnect("Stranger left."); };
+            
             const roomRef = doc(db, "text_rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
             await deleteDoc(roomRef); currentRoomId = roomId;
@@ -142,17 +153,26 @@
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
+            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Connected!</p>';
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { 
-                chatInput.disabled = false; sendBtn.disabled = false;
-                chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold underline">Stranger connected! Type something...</p>';
-                chatInput.focus();
+            dataChannel.onopen = () => { chatInput.disabled = false; sendBtn.disabled = false; chatInput.focus(); };
+            dataChannel.onmessage = (e) => {
+                if (e.data === "TYP_S") typingIndicator.classList.remove('hidden');
+                else if (e.data === "TYP_E") typingIndicator.classList.add('hidden');
+                else { typingIndicator.classList.add('hidden'); addMsg("Stranger", e.data, "stranger-msg"); }
             };
-            dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
-            dataChannel.onerror = (e) => console.error("DC Error:", e);
+            dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
+
+        chatInput.oninput = () => {
+            if (dataChannel?.readyState === "open") {
+                dataChannel.send("TYP_S");
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => dataChannel.send("TYP_E"), 2000);
+            }
+        };
 
         function addMsg(s, t, c) {
             const p = document.createElement('p'); p.innerHTML = `<span class="${c}">${s}:</span> ${t}`;
@@ -163,10 +183,11 @@
             const val = chatInput.value;
             if (val && dataChannel?.readyState === "open") {
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
+                dataChannel.send("TYP_E");
             }
         };
 
-        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('sendBtn').click(); } });
+        chatInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('sendBtn').click(); } };
         window.onbeforeunload = () => updateCounter(-1);
     </script>
 </body>
