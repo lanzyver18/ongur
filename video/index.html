@@ -21,12 +21,30 @@
     </style>
 </head>
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
+
+    <div id="tosModal" class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4">
+        <div class="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl">
+            <h2 class="text-2xl font-extrabold text-blue-700 mb-4 uppercase tracking-tight">Before you start...</h2>
+            <div class="text-sm text-gray-600 space-y-3 mb-6 max-h-60 overflow-y-auto pr-2 border-b border-gray-100 pb-4">
+                <p><strong>1. Age Requirement:</strong> You must be 18+ to use Ongur Video.</p>
+                <p><strong>2. Conduct:</strong> No nudity, harassment, or illegal content. We have zero tolerance for predatory behavior.</p>
+                <p><strong>3. Privacy:</strong> Chats are anonymous. Do not share personal info with strangers.</p>
+                <p><strong>4. Consent:</strong> By using this site, you consent to peer-to-peer video transmission.</p>
+            </div>
+            <label class="flex items-center gap-3 cursor-pointer group mb-6">
+                <input type="checkbox" id="tosCheckbox" class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-sm font-bold text-gray-700 group-hover:text-blue-700 transition-colors">I agree to the Terms of Service</span>
+            </label>
+            <button id="tosBtn" disabled class="w-full bg-blue-700 text-white py-3 rounded-xl font-bold text-lg opacity-50 cursor-not-allowed transition-all">Enter Video Chat</button>
+        </div>
+    </div>
+
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
             <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none">Ongur Video</h1>
             <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400">Loading...</span></div>
         </div>
-        <a href="/" class="text-xs font-bold text-gray-400 hover:underline">Home</a>
+        <a href="/" class="text-xs font-bold text-gray-400 hover:underline">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden">
@@ -44,7 +62,7 @@
         </div>
         <div class="w-full md:w-1/3 flex flex-col bg-white border-l border-gray-300 h-64 md:h-auto">
             <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm bg-white">
-                <p class="status-msg text-blue-600 font-bold">Waiting for camera access...</p>
+                <p class="status-msg">Welcome to Ongur Video.</p>
             </div>
             <div class="p-2 bg-gray-50 border-t border-gray-200">
                 <div class="flex gap-2">
@@ -87,7 +105,22 @@
         let pc, localStream, dataChannel, currentRoomId;
         let isStopped = true;
 
-        // Counter logic
+        // TOS MODAL LOGIC
+        const tosModal = document.getElementById('tosModal');
+        const tosCheckbox = document.getElementById('tosCheckbox');
+        const tosBtn = document.getElementById('tosBtn');
+
+        tosCheckbox.addEventListener('change', () => {
+            tosBtn.disabled = !tosCheckbox.checked;
+            tosBtn.classList.toggle('opacity-50', !tosCheckbox.checked);
+            tosBtn.classList.toggle('cursor-not-allowed', !tosCheckbox.checked);
+        });
+
+        tosBtn.onclick = () => {
+            tosModal.classList.add('hidden');
+            initCamera(); // Start camera request ONLY after they agree
+        };
+
         const countRef = doc(db, "metadata", "video_status");
         onSnapshot(countRef, (doc) => {
             const count = doc.data()?.online || 0;
@@ -103,15 +136,15 @@
         const chatBox = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
 
-        window.addEventListener('load', async () => {
+        async function initCamera() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1920, height: 1080 }, audio: true });
                 document.getElementById('localVideo').srcObject = localStream;
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                chatBox.innerHTML = '<p class="status-msg">Camera ready. Click Start Chat.</p>';
-            } catch (e) { chatBox.innerHTML = '<p class="status-msg text-red-600">Camera denied.</p>'; }
-        });
+                chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Camera ready. Click Start Chat.</p>';
+            } catch (e) { chatBox.innerHTML = '<p class="status-msg text-red-600 font-bold">Error: Camera/Mic required.</p>'; }
+        }
 
         startBtn.onclick = async () => {
             isStopped = false; startBtn.classList.add('hidden'); nextBtn.classList.remove('hidden');
@@ -119,9 +152,9 @@
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold"; }
-            else if (nextBtn.innerText === "Really?") { await stopEverything(); nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold"; }
-            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold"; await startSession(); }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold shadow-md"; }
+            else if (nextBtn.innerText === "Really?") { await stopEverything(); nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md"; }
+            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; await startSession(); }
         };
 
         async function stopEverything() {
@@ -132,7 +165,7 @@
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg text-blue-500 font-bold">Connecting...</p>';
+            chatBox.innerHTML = '<p class="status-msg text-blue-500 font-bold underline">Looking for a stranger...</p>';
             await signInAnonymously(auth);
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
@@ -152,7 +185,7 @@
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
+                    chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Matched with a stranger!</p>';
                 }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
@@ -171,12 +204,13 @@
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Stranger connected!</p>';
+            chatBox.innerHTML = '<p class="status-msg text-blue-600 font-bold">Matched with a stranger!</p>';
         }
 
         function setupDataChannel() {
             dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
+            dataChannel.onclose = () => { if (pc && !isStopped) nextBtn.click(); };
         }
 
         function addMsg(s, t, c) {
