@@ -10,7 +10,7 @@
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #777; font-style: italic; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .system-alert { color: #2563eb; font-weight: 800; font-style: italic; text-align: center; margin: 10px 0; }
+        .system-alert { color: #2563eb; font-weight: 800; font-style: italic; text-align: center; margin: 10px 0; font-size: 1rem; }
         .pulse { display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 6px; animation: blink 2s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
@@ -19,26 +19,27 @@
     <header class="p-4 border-b border-gray-300 flex justify-between items-center bg-white shadow-sm shrink-0">
         <div>
             <h1 class="text-2xl font-extrabold text-blue-700 tracking-tighter uppercase leading-none">Ongur Text</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase">Searching...</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
         </div>
-        <a href="/" class="text-xs font-bold text-gray-400 hover:underline px-3 py-1 border border-gray-200 rounded">Exit</a>
+        <a href="/" class="text-xs font-bold text-gray-400 border px-3 py-1 rounded">Exit</a>
     </header>
 
     <main class="flex-grow flex flex-col max-w-4xl mx-auto w-full overflow-hidden bg-gray-50 md:border-x border-gray-200">
-        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white font-sans">
+        <div id="chatMessages" class="flex-grow p-6 overflow-y-auto bg-white">
             <p class="status-msg">Click Start to find a stranger.</p>
         </div>
+        <div id="typingIndicator" class="px-6 py-1 text-[10px] text-gray-400 italic font-bold uppercase hidden bg-white">Stranger is typing...</div>
         <div class="p-4 bg-gray-100 border-t border-gray-200">
             <div class="flex gap-2">
-                <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-blue-500 h-16 resize-none shadow-sm transition-all bg-white disabled:bg-gray-100" disabled></textarea>
-                <button id="sendBtn" class="bg-blue-600 text-white px-6 rounded-lg font-bold disabled:opacity-50 transition-all" disabled>Send</button>
+                <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-blue-500 h-16 resize-none shadow-sm transition-all" disabled></textarea>
+                <button id="sendBtn" class="bg-blue-600 text-white px-8 rounded-lg font-bold disabled:opacity-50" disabled>Send</button>
             </div>
         </div>
     </main>
 
     <footer class="p-4 bg-white border-t border-gray-300 flex justify-center gap-4 shrink-0">
-        <button id="startBtn" class="bg-blue-700 text-white px-12 py-3 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gray-200 text-black px-12 py-3 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
+        <button id="startBtn" class="bg-blue-700 text-white px-16 py-4 rounded-full font-bold text-xl shadow-lg active:scale-95 transition-all">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-gray-200 text-black px-16 py-4 rounded-full font-bold text-xl shadow-sm border border-gray-300 active:scale-95">Stop</button>
     </footer>
 
     <script type="module">
@@ -65,7 +66,7 @@
             { urls: "turn:global.relay.metered.ca:443", username: "feb83559f52a708fa7772314", credential: "Dc81y6H6B0pfJHDc" }
         ]};
 
-        let pc, dataChannel, currentRoomId, isStopped = true;
+        let pc, dataChannel, currentRoomId, isStopped = true, typingTimeout;
 
         const countRef = doc(db, "metadata", "text_status");
         onSnapshot(countRef, (doc) => {
@@ -81,7 +82,15 @@
         const nextBtn = document.getElementById('nextBtn');
         const chatBox = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
-        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        async function handleDisconnect(reason) {
+            if (isStopped) return;
+            addMsg("System", reason, "status-msg text-red-500");
+            typingIndicator.classList.add('hidden');
+            await stopEverything();
+            setTimeout(async () => { if (!isStopped) await startSession(); }, 1500);
+        }
 
         startBtn.onclick = async () => {
             isStopped = false; startBtn.classList.add('hidden'); nextBtn.classList.remove('hidden');
@@ -89,47 +98,40 @@
         };
 
         nextBtn.onclick = async () => {
-            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; await stopEverything(); }
+            if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Next"; await stopEverything(); isStopped = true; }
             else { isStopped = false; nextBtn.innerText = "Stop"; await startSession(); }
         };
 
         async function stopEverything() {
-            isStopped = true; if (pc) pc.close(); if (currentRoomId) await deleteDoc(doc(db, "text_rooms", currentRoomId));
-            chatBox.innerHTML += '<p class="status-msg">Disconnected.</p>'; 
-            chatInput.disabled = true; sendBtn.disabled = true;
+            if (pc) pc.close(); 
+            if (currentRoomId) { try { await deleteDoc(doc(db, "text_rooms", currentRoomId)); } catch(e) {} currentRoomId = null; }
+            chatInput.disabled = true;
         }
 
         async function startSession() {
             if (isStopped) return;
-            chatBox.innerHTML = '<p class="status-msg">Searching...</p>';
+            chatBox.innerHTML = '<p class="status-msg">Searching for a partner...</p>';
             await signInAnonymously(auth);
             const q = query(collection(db, "text_rooms"), where("status", "==", "open"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
         }
 
-        function setupPC() {
-            pc = new RTCPeerConnection(servers);
-            pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') stopEverything();
-            };
-        }
-
         async function createRoom() {
-            setupPC();
-            dataChannel = pc.createDataChannel("chat");
-            setupDataChannel();
+            pc = new RTCPeerConnection(servers);
+            dataChannel = pc.createDataChannel("chat"); setupDataChannel();
             const roomRef = doc(collection(db, "text_rooms")); currentRoomId = roomRef.id;
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
+            
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type }, status: "open" });
             
             onSnapshot(roomRef, (snap) => {
-                if (!snap.exists() && !pc.currentRemoteDescription && !isStopped) { stopEverything(); return; }
+                if (!snap.exists() && !pc.currentRemoteDescription && !isStopped) { handleDisconnect("Stranger skipped."); return; }
                 const data = snap.data();
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    triggerUnlockUI();
+                    chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
                 }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
@@ -138,39 +140,39 @@
         async function joinRoom(roomId) {
             const roomRef = doc(db, "text_rooms", roomId);
             const roomSnap = await getDoc(roomRef);
-            if (roomSnap.data().status !== "open") { startSession(); return; }
+            if (!roomSnap.exists() || roomSnap.data().status !== "open") { startSession(); return; }
 
-            setupPC();
+            pc = new RTCPeerConnection(servers);
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
-            await deleteDoc(roomRef); // Mark as taken
             currentRoomId = roomId;
 
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomSnap.data().offer));
+            
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-            await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type }, status: "occupied" }, { merge: true });
+            await updateDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type }, status: "occupied" });
             
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
-            triggerUnlockUI();
-        }
-
-        function triggerUnlockUI() {
-            // Force unlock after 2 seconds regardless of state to prevent "gray box" trap
-            setTimeout(() => {
-                if (!isStopped) {
-                    chatInput.disabled = false; sendBtn.disabled = false;
-                    chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
-                    chatInput.focus();
-                }
-            }, 2000);
+            chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { 
-                chatInput.disabled = false; sendBtn.disabled = false;
+            dataChannel.onopen = () => { chatInput.disabled = false; chatInput.focus(); };
+            dataChannel.onmessage = (e) => {
+                if (e.data === "TYPING_START") typingIndicator.classList.remove('hidden');
+                else if (e.data === "TYPING_STOP") typingIndicator.classList.add('hidden');
+                else { typingIndicator.classList.add('hidden'); addMsg("Stranger", e.data, "stranger-msg"); }
             };
-            dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
+            dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
+
+        chatInput.oninput = () => {
+            if (dataChannel?.readyState === "open") {
+                dataChannel.send("TYPING_START");
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => dataChannel.send("TYPING_STOP"), 2000);
+            }
+        };
 
         function addMsg(s, t, c) {
             const p = document.createElement('p'); p.innerHTML = `<span class="${c}">${s}:</span> ${t}`;
@@ -181,9 +183,7 @@
             const val = chatInput.value;
             if (val && dataChannel?.readyState === "open") {
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
-            } else if (val) {
-                // Fallback if data channel is being slow
-                addMsg("System", "Still connecting... try again in a second.", "status-msg");
+                dataChannel.send("TYPING_STOP");
             }
         };
 
