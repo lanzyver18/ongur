@@ -44,7 +44,7 @@
     <header class="p-3 border-b border-gray-300 flex justify-between items-center bg-white shrink-0">
         <div class="flex flex-col">
             <h1 class="text-2xl font-extrabold text-blue-700 uppercase leading-none tracking-tighter">Ongur Video</h1>
-            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase">Strangers Online</span></div>
+            <div class="flex items-center mt-1"><span class="pulse"></span><span id="onlineCount" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Strangers Online</span></div>
         </div>
         <a href="/" class="text-xs font-bold text-gray-400 border px-2 py-1 rounded">Exit</a>
     </header>
@@ -106,13 +106,17 @@
         ]};
 
         let pc, localStream, dataChannel, currentRoomId;
-        let isStopped = true;
-        let typingTimeout;
+        let isStopped = true, typingTimeout;
 
         const tosModal = document.getElementById('tosModal');
         const tosCheckbox = document.getElementById('tosCheckbox');
         const tosBtn = document.getElementById('tosBtn');
         const typingIndicator = document.getElementById('typingIndicator');
+        const chatBox = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const startBtn = document.getElementById('startBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const sendBtn = document.getElementById('sendBtn');
 
         tosCheckbox.addEventListener('change', () => {
             tosBtn.disabled = !tosCheckbox.checked;
@@ -131,11 +135,6 @@
             try { await updateDoc(countRef, { online: increment(val) }); } catch(e) { await setDoc(countRef, { online: 1 }); }
         }
 
-        const startBtn = document.getElementById('startBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const chatBox = document.getElementById('chatMessages');
-        const chatInput = document.getElementById('chatInput');
-
         async function initCamera() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1920, height: 1080 }, audio: true });
@@ -145,18 +144,12 @@
             } catch (e) { alert("Camera Permission Required"); }
         }
 
-        // NEW: AUTO-REQUEUE LOGIC
         async function handleDisconnect(reason) {
             if (isStopped) return;
             addMsg("System", reason, "status-msg text-red-500 font-bold");
             typingIndicator.classList.add('hidden');
-            
             await stopEverything();
-
-            // Brief delay then auto-requeue
-            setTimeout(async () => {
-                if (!isStopped) await startSession();
-            }, 1500);
+            setTimeout(async () => { if (!isStopped) await startSession(); }, 1500);
         }
 
         startBtn.onclick = async () => {
@@ -167,31 +160,23 @@
         nextBtn.onclick = async () => {
             if (nextBtn.innerText === "Stop") { nextBtn.innerText = "Really?"; nextBtn.className = "bg-red-600 text-white px-12 py-3 rounded font-bold shadow-md"; }
             else if (nextBtn.innerText === "Really?") { 
-                isStopped = true;
-                await stopEverything(); 
-                nextBtn.innerText = "New"; 
-                nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md"; 
+                isStopped = true; await stopEverything(); 
+                nextBtn.innerText = "New"; nextBtn.className = "bg-blue-700 text-white px-12 py-3 rounded font-bold shadow-md"; 
             }
-            else { 
-                isStopped = false; 
-                nextBtn.innerText = "Stop"; 
-                nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; 
-                await startSession(); 
-            }
+            else { isStopped = false; nextBtn.innerText = "Stop"; nextBtn.className = "bg-gray-200 text-black px-12 py-3 rounded font-bold shadow-sm"; await startSession(); }
         };
 
         async function stopEverything() {
-            if (pc) { pc.close(); pc = null; }
+            if (pc) pc.close();
             if (currentRoomId) { try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e){} currentRoomId = null; }
             document.getElementById('remoteVideo').srcObject = null;
-            chatInput.disabled = true;
+            chatInput.disabled = true; sendBtn.disabled = true;
         }
 
         async function startSession() {
             if (isStopped) return;
             chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
             await signInAnonymously(auth);
-            
             const q = query(collection(db, "rooms"), where("status", "==", "open"), limit(1));
             const snapshot = await getDocs(q);
             if (snapshot.empty) createRoom(); else joinRoom(snapshot.docs[0].id);
@@ -202,9 +187,7 @@
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
             pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
             pc.onconnectionstatechange = () => {
-                if (pc && (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed")) {
-                    handleDisconnect("Stranger left.");
-                }
+                if (pc && (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed")) handleDisconnect("Stranger left.");
             };
         }
 
@@ -223,6 +206,7 @@
                 if (pc && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
+                    chatInput.focus();
                 }
             });
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
@@ -232,22 +216,20 @@
             const roomRef = doc(db, "rooms", roomId);
             const roomSnap = await getDoc(roomRef);
             if (!roomSnap.exists() || roomSnap.data().status !== "open") { startSession(); return; }
-
             currentRoomId = roomId;
             setupPC();
             pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "joinCandidates"), e.candidate.toJSON());
             await pc.setRemoteDescription(new RTCSessionDescription(roomSnap.data().offer));
-
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
             await updateDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type }, status: "occupied" });
-
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
             chatBox.innerHTML = '<p class="system-alert">Connected! Say hi to the stranger.</p>';
+            chatInput.focus();
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
+            dataChannel.onopen = () => { chatInput.disabled = false; sendBtn.disabled = false; };
             dataChannel.onmessage = (e) => {
                 if (e.data === "TYPING_START") typingIndicator.classList.remove('hidden');
                 else if (e.data === "TYPING_STOP") typingIndicator.classList.add('hidden');
@@ -255,6 +237,14 @@
             };
             dataChannel.onclose = () => handleDisconnect("Stranger left.");
         }
+
+        // SEND ON ENTER KEY
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendBtn.click();
+            }
+        });
 
         chatInput.oninput = () => {
             if (dataChannel?.readyState === "open") {
@@ -269,7 +259,7 @@
             chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        document.getElementById('sendBtn').onclick = () => {
+        sendBtn.onclick = () => {
             const val = chatInput.value;
             if (val && dataChannel?.readyState === "open") {
                 dataChannel.send(val); addMsg("You", val, "you-msg"); chatInput.value = "";
@@ -278,7 +268,6 @@
         };
 
         window.onbeforeunload = () => updateCounter(-1);
-        document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'hidden' && !isStopped) stopEverything(); });
     </script>
 </body>
 </html>
