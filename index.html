@@ -10,6 +10,14 @@
         .you-msg { color: #ff0000; font-weight: bold; }
         .stranger-msg { color: #0000ff; font-weight: bold; }
         .status-msg { color: #555; font-style: italic; font-size: 0.85rem; }
+        
+        /* FITS VIDEO TO CONTAINER REGARDLESS OF SCREEN SIZE */
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* This makes it "fill" the box like Zoom/Instagram */
+            background-color: #000;
+        }
     </style>
 </head>
 <body class="bg-white text-black h-screen flex flex-col font-sans overflow-hidden">
@@ -23,26 +31,27 @@
     </header>
 
     <main class="flex-grow flex flex-col md:flex-row overflow-hidden border-b border-gray-300">
+        
         <div class="flex-grow md:w-2/3 flex flex-col p-2 gap-2 bg-gray-100">
-            <div class="flex-grow grid grid-rows-2 gap-2">
-                <div class="relative bg-black rounded shadow-inner overflow-hidden flex items-center justify-center">
-                    <video id="localVideo" autoplay playsinline muted class="w-full h-full object-contain bg-black"></video>
-                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-black rounded border border-gray-300">YOU</div>
+            <div class="flex-grow grid grid-rows-2 gap-2 h-full">
+                <div class="relative bg-black rounded shadow-inner overflow-hidden">
+                    <video id="localVideo" autoplay playsinline muted></video>
+                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold rounded border border-gray-300">YOU</div>
                 </div>
-                <div class="relative bg-black rounded shadow-inner overflow-hidden flex items-center justify-center">
-                    <video id="remoteVideo" autoplay playsinline class="w-full h-full object-contain bg-black"></video>
-                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-black rounded border border-gray-300">STRANGER</div>
+                <div class="relative bg-black rounded shadow-inner overflow-hidden">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-0.5 text-[10px] font-bold rounded border border-gray-300">STRANGER</div>
                 </div>
             </div>
         </div>
 
         <div class="w-full md:w-1/3 flex flex-col bg-white border-l border-gray-300">
             <div id="chatMessages" class="flex-grow p-4 overflow-y-auto text-sm border-b border-gray-200 bg-white">
-                <p class="status-msg">Omegle is a great way to meet new friends. You must be 18+.</p>
+                <p class="status-msg">Omegle is a great way to meet new friends.</p>
             </div>
             <div class="p-3 bg-gray-50 flex flex-col gap-2">
                 <div class="flex gap-2">
-                    <textarea id="chatInput" placeholder="Type your message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500 resize-none h-16" disabled></textarea>
+                    <textarea id="chatInput" placeholder="Type message..." class="flex-grow border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-500 resize-none h-16" disabled></textarea>
                     <button id="sendBtn" class="bg-blue-600 text-white px-4 rounded font-bold text-sm disabled:opacity-50" disabled>Send</button>
                 </div>
             </div>
@@ -50,8 +59,8 @@
     </main>
 
     <footer class="p-4 bg-gray-100 flex justify-center items-center gap-4">
-        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md transition-transform active:scale-95">Start Chat</button>
-        <button id="nextBtn" class="hidden bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md transition-transform active:scale-95">Stop / Next</button>
+        <button id="startBtn" class="bg-blue-700 hover:bg-blue-800 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md active:scale-95">Start Chat</button>
+        <button id="nextBtn" class="hidden bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white px-12 py-3 rounded-md font-bold text-lg shadow-md active:scale-95">Next</button>
     </footer>
 
     <script type="module">
@@ -59,29 +68,26 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // FOR TESTING: Put your real keys here directly
-    const firebaseConfig = {
-      apiKey: "AIzaSyA6VxPhC3Y214VvPJTS4XQebN5k4KTBBps",
-      authDomain: "ongur-26b0d.firebaseapp.com",
-      projectId: "ongur-26b0d",
-      storageBucket: "ongur-26b0d.firebasestorage.app",    
-      messagingSenderId: "1096173981635",
-      appId: "1:1096173981635:web:4722a323d2fd111123b776",
-      measurementId: "G-KK16MH00SV"
-    };
-
+        // CONFIG (Replace with your actual keys if Vercel Build Step is failing)
+        const firebaseConfig = {
+            apiKey: "APP_FIREBASE_API_KEY",
+            authDomain: "APP_FIREBASE_AUTH_DOMAIN",
+            projectId: "APP_FIREBASE_PROJECT_ID",
+            storageBucket: "APP_FIREBASE_STORAGE_BUCKET",
+            messagingSenderId: "APP_FIREBASE_MESSAGING_SENDER_ID",
+            appId: "APP_FIREBASE_APP_ID",
+            measurementId: "APP_FIREBASE_MEASUREMENT_ID"
+        };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        const servers = { iceServers: [
-            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
-        ]};
-
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         let pc = null;
         let localStream = null;
         let dataChannel = null;
+        let currentRoomId = null;
 
         const startBtn = document.getElementById('startBtn');
         const nextBtn = document.getElementById('nextBtn');
@@ -90,96 +96,90 @@
         const chatInput = document.getElementById('chatInput');
 
         startBtn.onclick = async () => {
-            console.log("Start Clicked");
             startBtn.classList.add('hidden');
             nextBtn.classList.remove('hidden');
             await startSession();
         };
 
-        nextBtn.onclick = () => location.reload();
+        // NEXT BUTTON: DISCONNECTS AND RE-MATCHES WITHOUT REFRESHING
+        nextBtn.onclick = async () => {
+            await cleanup();
+            await startSession();
+        };
+
+        async function cleanup() {
+            if (pc) { pc.close(); pc = null; }
+            if (currentRoomId) { 
+                // Attempt to delete the room document to keep DB clean
+                try { await deleteDoc(doc(db, "rooms", currentRoomId)); } catch(e) {}
+                currentRoomId = null;
+            }
+            document.getElementById('remoteVideo').srcObject = null;
+            chatBox.innerHTML = '<p class="status-msg">Searching for a stranger...</p>';
+            chatInput.disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+        }
 
         async function startSession() {
             statusText.innerText = "STATUS: AUTHORIZING...";
-            try {
-                const user = await signInAnonymously(auth);
-                console.log("Auth success:", user.user.uid);
-            } catch (err) {
-                console.error("Auth failed:", err);
-                addMsg("System", "Authentication Error. Is Anonymous Auth enabled?", "status-msg");
-                return;
-            }
+            await signInAnonymously(auth);
             
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                console.log("Camera access granted");
-            } catch (e) {
-                console.error("Media failed:", e);
-                addMsg("System", "Camera denied. Please check site permissions.", "status-msg");
-                return;
+            if (!localStream) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('localVideo').srcObject = localStream;
+                } catch (e) {
+                    addMsg("System", "Camera access denied.", "status-msg");
+                    return;
+                }
             }
 
             statusText.innerText = "STATUS: SEARCHING...";
             const q = query(collection(db, "rooms"), limit(1));
             const snapshot = await getDocs(q);
 
-            if (snapshot.empty) { 
-                console.log("No rooms found, becoming host...");
-                createRoom(); 
-            } else { 
-                console.log("Room found, becoming joiner...");
-                joinRoom(snapshot.docs[0].id); 
-            }
-        }
-
-        async function setupPC() {
-            pc = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.ontrack = (event) => { 
-                console.log("Remote track received");
-                document.getElementById('remoteVideo').srcObject = event.streams[0]; 
-            };
+            if (snapshot.empty) { createRoom(); } else { joinRoom(snapshot.docs[0].id); }
         }
 
         async function createRoom() {
-            statusText.innerText = "STATUS: WAITING...";
-            await setupPC();
+            const pc_new = new RTCPeerConnection(servers);
+            pc = pc_new;
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            
             dataChannel = pc.createDataChannel("chat");
             setupDataChannel();
 
             const roomRef = doc(collection(db, "rooms"));
+            currentRoomId = roomRef.id;
+
             pc.onicecandidate = (e) => e.candidate && addDoc(collection(roomRef, "hostCandidates"), e.candidate.toJSON());
+            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             await setDoc(roomRef, { offer: { sdp: offer.sdp, type: offer.type } });
 
-            console.log("Host room created:", roomRef.id);
-
             onSnapshot(roomRef, (snap) => {
                 const data = snap.data();
-                if (!pc.currentRemoteDescription && data?.answer) {
-                    console.log("Answer received from joiner");
+                if (pc === pc_new && !pc.currentRemoteDescription && data?.answer) {
                     pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     statusText.innerText = "STATUS: CONNECTED";
-                    addMsg("System", "You're now chatting with a stranger!", "status-msg");
                 }
             });
 
             onSnapshot(collection(roomRef, "joinCandidates"), (s) => {
-                s.docChanges().forEach(c => {
-                    if (c.type === "added") pc.addIceCandidate(new RTCIceCandidate(c.doc.data()));
-                });
+                s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
         }
 
         async function joinRoom(roomId) {
-            statusText.innerText = "STATUS: CONNECTING...";
-            await setupPC();
-            pc.ondatachannel = (e) => { 
-                dataChannel = e.channel; 
-                setupDataChannel(); 
-            };
+            currentRoomId = roomId;
+            const pc_new = new RTCPeerConnection(servers);
+            pc = pc_new;
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            
+            pc.ondatachannel = (e) => { dataChannel = e.channel; setupDataChannel(); };
+            pc.ontrack = (e) => document.getElementById('remoteVideo').srcObject = e.streams[0];
 
             const roomRef = doc(db, "rooms", roomId);
             const roomData = (await getDoc(roomRef)).data();
@@ -193,30 +193,14 @@
             await setDoc(roomRef, { answer: { sdp: answer.sdp, type: answer.type } }, { merge: true });
 
             onSnapshot(collection(roomRef, "hostCandidates"), (s) => {
-                s.docChanges().forEach(c => {
-                    if (c.type === "added") pc.addIceCandidate(new RTCIceCandidate(c.doc.data()));
-                });
+                s.docChanges().forEach(c => c.type === "added" && pc && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
             });
             statusText.innerText = "STATUS: CONNECTED";
-            addMsg("System", "Connected to stranger!", "status-msg");
         }
 
         function setupDataChannel() {
-            dataChannel.onopen = () => { 
-                console.log("Chat channel open");
-                chatInput.disabled = false; 
-                document.getElementById('sendBtn').disabled = false; 
-            };
+            dataChannel.onopen = () => { chatInput.disabled = false; document.getElementById('sendBtn').disabled = false; };
             dataChannel.onmessage = (e) => addMsg("Stranger", e.data, "stranger-msg");
-        }
-
-        function sendMessage() {
-            const val = chatInput.value;
-            if (val && dataChannel && dataChannel.readyState === "open") {
-                dataChannel.send(val);
-                addMsg("You", val, "you-msg");
-                chatInput.value = "";
-            }
         }
 
         function addMsg(s, t, c) {
@@ -226,8 +210,14 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        document.getElementById('sendBtn').onclick = sendMessage;
-        chatInput.onkeypress = (e) => e.key === 'Enter' && (e.preventDefault(), sendMessage());
+        document.getElementById('sendBtn').onclick = () => {
+            const val = chatInput.value;
+            if (val && dataChannel?.readyState === "open") {
+                dataChannel.send(val);
+                addMsg("You", val, "you-msg");
+                chatInput.value = "";
+            }
+        };
     </script>
 </body>
 </html>
