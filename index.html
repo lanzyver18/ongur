@@ -59,15 +59,17 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, getDocs, query, limit, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        const firebaseConfig = {
-            apiKey: "APP_FIREBASE_API_KEY",
-            authDomain: "APP_FIREBASE_AUTH_DOMAIN",
-            projectId: "APP_FIREBASE_PROJECT_ID",
-            storageBucket: "APP_FIREBASE_STORAGE_BUCKET",
-            messagingSenderId: "APP_FIREBASE_MESSAGING_SENDER_ID",
-            appId: "APP_FIREBASE_APP_ID",
-            measurementId: "APP_FIREBASE_MEASUREMENT_ID"
-        };
+        // FOR TESTING: Put your real keys here directly
+    const firebaseConfig = {
+      apiKey: "AIzaSyA6VxPhC3Y214VvPJTS4XQebN5k4KTBBps",
+      authDomain: "ongur-26b0d.firebaseapp.com",
+      projectId: "ongur-26b0d",
+      storageBucket: "ongur-26b0d.firebasestorage.app",    
+      messagingSenderId: "1096173981635",
+      appId: "1:1096173981635:web:4722a323d2fd111123b776",
+      measurementId: "G-KK16MH00SV"
+    };
+
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
